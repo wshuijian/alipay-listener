@@ -34,7 +34,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             val fullText = "$title $text $bigText"
 
             if (isPayerNotification(fullText)) {
-                Log.d(TAG, "是付款方通知，忽略: $fullText")
+                Log.d(TAG, "是付款方/待付款通知，忽略: $fullText")
                 return
             }
 
@@ -50,7 +50,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedIds.add(eventId)
             if (processedIds.size > 500) processedIds.clear()
 
-            Log.i(TAG, "检测到支付宝收款: ¥$amount")
+            Log.i(TAG, "检测到支付宝收款: ¥$amount, 内容: $fullText")
             MqttClientManager.sendPayment(amount = amount, rawText = fullText)
 
         } catch (e: Exception) {
@@ -62,17 +62,19 @@ class AlipayNotificationListener : NotificationListenerService() {
         val payerKeywords = listOf(
             "付款成功", "支付成功", "正在付款", "付款中",
             "转账成功", "已付款", "已支付", "消费",
-            "支出", "花呗", "账单", "还款"
+            "支出", "花呗", "账单", "还款",
+            "待收款", "等待付款", "待支付", "付款待确认",
+            "等待收款", "待确认", "处理中", "支付处理中"
         )
         return payerKeywords.any { text.contains(it) }
     }
 
     private fun isPaymentNotification(text: String): Boolean {
         val receiveKeywords = listOf(
-            "收款", "到账", "已收款", "收款成功",
-            "收钱码", "收款码", "收到转账", "转账到账",
-            "余额收款", "你有一笔收款", "收款到账",
-            "商家收款", "二维码收款"
+            "已收款", "收款成功", "收款到账", "到账成功",
+            "你有一笔收款", "收钱码收款", "二维码收款",
+            "商家收款", "余额收款", "收到转账", "转账到账",
+            "收款¥", "到账¥", "已成功收款"
         )
         return receiveKeywords.any { text.contains(it) }
     }
