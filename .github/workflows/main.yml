@@ -24,6 +24,12 @@ jobs:
       with:
         gradle-version: '8.7'
 
+    - name: Create gradle.properties
+      run: |
+        echo "android.useAndroidX=true" > gradle.properties
+        echo "android.enableJetifier=true" >> gradle.properties
+        echo "org.gradle.jvmargs=-Xmx2048m" >> gradle.properties
+
     - name: Build Debug APK
       run: gradle assembleDebug
 
