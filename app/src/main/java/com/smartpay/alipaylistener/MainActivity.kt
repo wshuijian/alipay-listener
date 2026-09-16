@@ -80,12 +80,12 @@ class MainActivity : AppCompatActivity() {
         updateStatus()
 
         // 注册日志回调
-        MqttClientManager.setLogCallback { log ->
+        LogManager.setLogCallback { log ->
             runOnUiThread {
                 tvLog.append(log + "\n")
                 val logText = tvLog.text.toString()
-                if (logText.length > 3000) {
-                    tvLog.text = logText.substring(logText.length - 3000)
+                if (logText.length > 5000) {
+                    tvLog.text = logText.substring(logText.length - 5000)
                 }
             }
         }

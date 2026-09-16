@@ -157,7 +157,6 @@ object MqttClientManager {
     }
 
     private fun log(msg: String) {
-        logCallback?.invoke(msg)
-        println("[MQTT] $msg")
+        LogManager.addLog("MQTT", msg)
     }
 }
