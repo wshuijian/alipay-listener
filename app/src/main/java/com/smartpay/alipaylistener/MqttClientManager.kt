@@ -16,8 +16,9 @@ object MqttClientManager {
     private var mqttClient: MqttClient? = null
     private var isConnected = false
     private var isPaired = false
-    private var deviceId = ""
+    private var deviceId = ""  // 设备ID固定不变，重连也用同一个
     private var pairCode = ""
+    private var isReconnecting = false  // 防止重复重连
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
 
@@ -34,20 +35,28 @@ object MqttClientManager {
 
     fun connect(pairCode: String) {
         this.pairCode = pairCode
-        this.deviceId = "android_" + UUID.randomUUID().toString().substring(0, 8)
+        
+        // 设备ID只生成一次，之后重连一直用同一个
+        if (deviceId.isEmpty()) {
+            deviceId = "android_" + UUID.randomUUID().toString().substring(0, 8)
+        }
 
         log("设备ID: $deviceId")
         log("配对码: $pairCode")
         log("正在连接MQTT服务器: $MQTT_BROKER")
 
         try {
+            // 先清理旧连接
+            try { mqttClient?.disconnect() } catch (_: Exception) {}
+            mqttClient = null
+
             mqttClient = MqttClient(MQTT_BROKER, deviceId, MemoryPersistence())
 
             val options = MqttConnectOptions().apply {
                 isCleanSession = true
-                connectionTimeout = 10
+                connectionTimeout = 15
                 keepAliveInterval = 60
-                isAutomaticReconnect = true
+                isAutomaticReconnect = false  // 关闭自动重连，只用手动重连，避免冲突
             }
 
             mqttClient?.setCallback(object : MqttCallback {
@@ -56,9 +65,8 @@ object MqttClientManager {
                     isPaired = false
                     log("连接断开: ${cause?.message}")
                     statusCallback?.invoke("disconnected", "连接断开")
-                    // 5秒后重连
-                    Thread.sleep(5000)
-                    connect(pairCode)
+                    // 5秒后重连（用同一个deviceId）
+                    scheduleReconnect()
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -84,6 +92,7 @@ object MqttClientManager {
 
             mqttClient?.connect(options)
             isConnected = true
+            isReconnecting = false
             log("✅ MQTT连接成功")
             statusCallback?.invoke("connected", "连接成功")
 
@@ -98,9 +107,24 @@ object MqttClientManager {
         } catch (e: Exception) {
             log("❌ MQTT连接异常: ${e.message}")
             statusCallback?.invoke("error", "连接失败")
-            Thread.sleep(5000)
-            connect(pairCode)
+            // 5秒后重连
+            scheduleReconnect()
         }
+    }
+
+    /**
+     * 安排重连（防止重复重连）
+     */
+    private fun scheduleReconnect() {
+        if (isReconnecting) return
+        isReconnecting = true
+        
+        Thread {
+            Thread.sleep(5000)
+            isReconnecting = false
+            log("正在重连...")
+            connect(pairCode)
+        }.start()
     }
 
     private fun sendPairRequest() {
@@ -150,6 +174,7 @@ object MqttClientManager {
             mqttClient = null
             isConnected = false
             isPaired = false
+            isReconnecting = false
             log("已断开连接")
         } catch (e: Exception) {
             log("断开异常: ${e.message}")
