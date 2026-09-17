@@ -1,6 +1,8 @@
 package com.smartpay.alipaylistener
 
+import android.app.Activity
 import android.app.NotificationManager
+import android.app.NotificationChannel
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -12,19 +14,22 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
 
     private lateinit var etPairCode: EditText
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnOpenNotificationAccess: Button
+    private lateinit var btnTestNotify: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
 
     private val PREFS_NAME = "alipay_listener_prefs"
     private val KEY_PAIR_CODE = "pair_code"
+    private val CHANNEL_ID_TEST = "test_channel"
+    private val NOTIFICATION_ID_TEST = 9999
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,6 +39,7 @@ class MainActivity : AppCompatActivity() {
         btnStart = findViewById(R.id.btn_start)
         btnStop = findViewById(R.id.btn_stop)
         btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
+        btnTestNotify = findViewById(R.id.btn_test_notify)
         tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
 
@@ -75,6 +81,12 @@ class MainActivity : AppCompatActivity() {
         // 打开通知监听权限设置
         btnOpenNotificationAccess.setOnClickListener {
             startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+        }
+
+        // 测试通知按钮
+        btnTestNotify.setOnClickListener {
+            sendTestNotification()
+            Toast.makeText(this, "已发送测试通知，看日志区有没有收到", Toast.LENGTH_SHORT).show()
         }
 
         updateStatus()
@@ -137,5 +149,34 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return false
+    }
+
+    /**
+     * 发送测试通知，验证通知监听服务是否正常工作
+     */
+    private fun sendTestNotification() {
+        // 创建通知渠道
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID_TEST,
+                "测试通知",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+
+        // 发送通知
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID_TEST)
+            .setContentTitle("支付宝收款监听测试")
+            .setContentText("你已成功收款 0.01 元")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID_TEST, notification)
+
+        LogManager.addLog("测试", "已发送测试通知")
     }
 }
