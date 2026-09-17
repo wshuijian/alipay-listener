@@ -19,7 +19,19 @@ class AlipayNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
+        processNotification(sbn)
+    }
 
+    override fun onNotificationUpdated(sbn: StatusBarNotification?) {
+        super.onNotificationUpdated(sbn)
+        if (sbn == null) return
+        processNotification(sbn)
+    }
+
+    /**
+     * 处理通知（新通知和更新通知都走这里）
+     */
+    private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
 
         // 【调试模式】先打印所有通知，确认服务是否正常
