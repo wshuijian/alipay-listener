@@ -38,7 +38,7 @@ class AlipayAccessibilityService : AccessibilityService() {
     }
 
     private fun handleEvent(event: AccessibilityEvent) {
-        val node = rootActiveWindow ?: return
+        val node = rootInActiveWindow ?: return
 
         // 递归遍历所有节点，收集文本
         val texts = mutableListOf<String>()
@@ -55,7 +55,7 @@ class AlipayAccessibilityService : AccessibilityService() {
                 val amount = extractAmount(fullText)
                 if (amount != null) {
                     // 去重
-                    val eventId = "$amount_$fullText.hashCode()"
+                    val eventId = "${amount}_${fullText.hashCode()}"
                     if (processedTexts.contains(eventId)) {
                         return
                     }
