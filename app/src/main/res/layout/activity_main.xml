@@ -106,6 +106,17 @@
             android:textSize="14sp"
             android:textColor="#1A73E8"
             android:backgroundTint="#E8F0FE"
+            android:layout_marginBottom="10dp" />
+
+        <!-- 测试通知按钮 -->
+        <Button
+            android:id="@+id/btn_test_notify"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="发送测试通知（验证监听是否正常）"
+            android:textSize="13sp"
+            android:textColor="#FF6D00"
+            android:backgroundTint="#FFF3E0"
             android:layout_marginBottom="24dp" />
 
         <!-- 使用说明 -->
