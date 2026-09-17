@@ -312,7 +312,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             LogManager.addLog("✅ 解析成功", "金额:¥$amount")
 
             // 发送给PC端（MQTT全网通）
-            LogManager.addLog("MQTT", "正在发送金额$amount到PC端...")
+            LogManager.addLog("MQTT", "正在发送金额${amount}到PC端...")
             MqttClientManager.sendPayment(amount = amount, rawText = title)
             LogManager.addLog("MQTT", "发送完成")
 
