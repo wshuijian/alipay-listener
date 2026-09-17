@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">支付宝收款监听</string>
+    <string name="accessibility_description">监听支付宝收款通知，自动播报到账金额。开启后可实时识别支付宝收款到账消息。</string>
 </resources>
