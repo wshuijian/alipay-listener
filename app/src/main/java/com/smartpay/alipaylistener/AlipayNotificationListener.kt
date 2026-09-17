@@ -16,12 +16,16 @@ class AlipayNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "AlipayListener"
         private const val ALIPAY_PACKAGE = "com.eg.android.AlipayGphone"
+        private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
-        // 第一阶段：只做通知链路诊断，不执行金额解析，也不触发 MQTT。
-        // 确认能稳定拿到支付宝到账原始 Notification 后，再切回 false 进入第二阶段。
-        private const val DIAGNOSTICS_ONLY = true
+        // 第二阶段：关闭纯诊断模式，开启金额解析和MQTT发送
+        private const val DIAGNOSTICS_ONLY = false
 
-        private val AMOUNT_PATTERN = Pattern.compile("([\\d]+\\.?[\\d]*)\\s*元")
+        // 防重复：记录已经处理过的通知key
+        private val processedKeys = mutableSetOf<String>()
+
+        // 金额正则：从"你已成功收款0.01元"里提取0.01
+        private val AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
     }
 
     override fun onListenerConnected() {
@@ -256,8 +260,9 @@ class AlipayNotificationListener : NotificationListenerService() {
     }
 
     /**
-     * 第二阶段逻辑保留，但第一阶段由 DIAGNOSTICS_ONLY 拦截，不执行。
-     * 处理通知（新通知和更新通知都走这里）
+     * 第二阶段：处理支付宝收款通知
+     * 只处理 channelId=alipay_default 的通知
+     * 从 title 中提取金额，发送MQTT
      */
     private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
@@ -266,89 +271,54 @@ class AlipayNotificationListener : NotificationListenerService() {
             val notification = sbn.notification ?: return
             val extras = notification.extras ?: return
 
-            val title = extras.getString(Notification.EXTRA_TITLE, "")
-            val text = extras.getString(Notification.EXTRA_TEXT, "")
-            val bigText = extras.getString(Notification.EXTRA_BIG_TEXT, "")
-
-            val fullText = "$title $text $bigText"
-
-            LogManager.addLog("收到通知", "包名:$packageName | 标题:$title | 内容:$text")
-
             // 只处理支付宝的通知
             if (packageName != ALIPAY_PACKAGE) {
                 return
             }
 
-            // 先排除付款方/待付款的通知
-            if (isPayerNotification(fullText)) {
-                LogManager.addLog("判断结果", "是付款方/待付款通知，忽略")
+            // 只处理收款通知通道，排除"收钱提醒助手"那个voice_helper通道
+            val channelId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                notification.channelId ?: ""
+            } else {
+                ""
+            }
+
+            if (channelId != ALIPAY_PAY_CHANNEL) {
                 return
             }
 
-            // 判断是否是收款通知
-            if (!isPaymentNotification(fullText)) {
-                LogManager.addLog("判断结果", "不是收款通知，忽略")
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
+            val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
+
+            LogManager.addLog("收到支付宝收款通知", "title=$title | text=$text")
+
+            // 防重复：用通知key+postTime去重
+            val eventKey = "${sbn.key}_${sbn.postTime}"
+            if (processedKeys.contains(eventKey)) {
+                LogManager.addLog("防重复", "同一条通知，忽略")
+                return
+            }
+            processedKeys.add(eventKey)
+            if (processedKeys.size > 100) processedKeys.clear()
+
+            // 从title中提取金额："你已成功收款0.01元（老顾客消费）" → 0.01
+            val matcher = AMOUNT_PATTERN.matcher(title)
+            if (!matcher.find()) {
+                LogManager.addLog("解析失败", "title中没找到金额")
                 return
             }
 
-            // 提取金额
-            val amount = extractAmount(fullText)
-            if (amount == null) {
-                LogManager.addLog("判断结果", "无法提取金额，忽略")
-                return
-            }
-
-            LogManager.addLog("✅ 检测到收款", "金额:¥$amount")
+            val amount = matcher.group(1)
+            LogManager.addLog("✅ 解析成功", "金额:¥$amount")
 
             // 发送给PC端（MQTT全网通）
-            MqttClientManager.sendPayment(amount = amount, rawText = fullText)
+            LogManager.addLog("MQTT", "正在发送金额$amount到PC端...")
+            MqttClientManager.sendPayment(amount = amount, rawText = title)
+            LogManager.addLog("MQTT", "发送完成")
 
         } catch (e: Exception) {
             LogManager.addLog("❌ 异常", e.message ?: "未知错误")
             Log.e(TAG, "处理通知异常", e)
         }
-    }
-
-    /**
-     * 判断是否是付款方/待付款的通知（排除这些）
-     */
-    private fun isPayerNotification(text: String): Boolean {
-        val payerKeywords = listOf(
-            "付款成功", "支付成功", "正在付款", "付款中",
-            "转账成功", "已付款", "已支付", "消费",
-            "支出", "花呗", "账单", "还款",
-            "待收款", "等待付款", "待支付", "付款待确认",
-            "等待收款", "待确认", "处理中", "支付处理中"
-        )
-        return payerKeywords.any { text.contains(it) }
-    }
-
-    /**
-     * 判断是否是收款通知（先排除待付款，再判断收款关键词）
-     */
-    private fun isPaymentNotification(text: String): Boolean {
-        val pendingKeywords = listOf(
-            "待收款", "等待付款", "待支付", "付款待确认",
-            "等待收款", "待确认", "处理中", "支付处理中",
-            "正在付款", "付款中"
-        )
-        if (pendingKeywords.any { text.contains(it) }) {
-            return false
-        }
-
-        val receiveKeywords = listOf(
-            "收款", "到账", "已收款", "收款成功",
-            "你有一笔", "收钱码", "收到转账", "转账到账",
-            "余额收款", "商家收款", "二维码收款"
-        )
-        return receiveKeywords.any { text.contains(it) }
-    }
-
-    /**
-     * 从文本中提取金额
-     */
-    private fun extractAmount(text: String): String? {
-        val matcher = AMOUNT_PATTERN.matcher(text)
-        return if (matcher.find()) matcher.group(1) else null
     }
 }
