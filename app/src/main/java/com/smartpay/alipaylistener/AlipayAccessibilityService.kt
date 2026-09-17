@@ -2,12 +2,10 @@ package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import java.util.regex.Pattern
 
 /**
- * 无障碍服务 - 读取支付宝屏幕内容，识别收款通知
- * 这是收款播报软件的标准实现方式
+ * 无障碍服务 - 监听通知事件，识别支付宝收款通知
  */
 class AlipayAccessibilityService : AccessibilityService() {
 
@@ -15,40 +13,31 @@ class AlipayAccessibilityService : AccessibilityService() {
         private const val TAG = "AlipayAccessibility"
         private const val ALIPAY_PACKAGE = "com.eg.android.AlipayGphone"
         private val AMOUNT_PATTERN = Pattern.compile("([\\d]+\\.?[\\d]*)\\s*元")
-        private val processedTexts = mutableSetOf<String>()
+        private val processedIds = mutableSetOf<String>()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // 只处理支付宝的事件
-        if (event.packageName != ALIPAY_PACKAGE) return
-
         try {
-            when (event.eventType) {
-                AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED,
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                    handleEvent(event)
-                }
+            // 只处理通知状态变化事件
+            if (event.eventType != AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+                return
             }
-        } catch (e: Exception) {
-            LogManager.addLog("无障碍异常", e.message ?: "未知错误")
-        }
-    }
 
-    private fun handleEvent(event: AccessibilityEvent) {
-        val node = rootInActiveWindow ?: return
+            val packageName = event.packageName?.toString() ?: return
 
-        // 递归遍历所有节点，收集文本
-        val texts = mutableListOf<String>()
-        collectTexts(node, texts)
+            // 只处理支付宝的通知
+            if (packageName != ALIPAY_PACKAGE) {
+                return
+            }
 
-        val fullText = texts.joinToString(" ")
+            // 从事件里提取通知文本
+            val texts = event.text ?: return
+            if (texts.isEmpty()) return
 
-        // 只打印支付宝相关的通知
-        if (fullText.contains("收款") || fullText.contains("到账") || fullText.contains("元")) {
-            LogManager.addLog("无障碍", "屏幕内容: $fullText")
+            val fullText = texts.joinToString(" ")
+            LogManager.addLog("无障碍收到通知", "$fullText")
 
             // 判断是否是收款成功
             if (isPaymentSuccess(fullText)) {
@@ -56,32 +45,18 @@ class AlipayAccessibilityService : AccessibilityService() {
                 if (amount != null) {
                     // 去重
                     val eventId = "${amount}_${fullText.hashCode()}"
-                    if (processedTexts.contains(eventId)) {
+                    if (processedIds.contains(eventId)) {
                         return
                     }
-                    processedTexts.add(eventId)
-                    if (processedTexts.size > 500) processedTexts.clear()
+                    processedIds.add(eventId)
+                    if (processedIds.size > 500) processedIds.clear()
 
                     LogManager.addLog("✅ 检测到收款", "金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = fullText)
                 }
             }
-        }
-    }
-
-    /**
-     * 递归收集所有文本
-     */
-    private fun collectTexts(node: AccessibilityNodeInfo?, texts: MutableList<String>) {
-        if (node == null) return
-
-        node.text?.let {
-            texts.add(it.toString())
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i)
-            collectTexts(child, texts)
+        } catch (e: Exception) {
+            LogManager.addLog("无障碍异常", e.message ?: "未知错误")
         }
     }
 
@@ -104,7 +79,7 @@ class AlipayAccessibilityService : AccessibilityService() {
             "收款成功", "已收款", "收款到账",
             "你有一笔", "收到转账", "转账到账",
             "余额收款", "商家收款", "二维码收款",
-            "元已到账", "元到账"
+            "元已到账", "元到账", "收钱"
         )
         return receiveKeywords.any { text.contains(it) }
     }
