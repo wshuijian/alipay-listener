@@ -132,7 +132,14 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. 电脑端打开智慧收款软件，查看配对码\n2. 在上方输入6位配对码\n3. 点击\"开启通知监听权限\"，允许本应用监听通知\n4. 点击\"开始监听\"\n5. 保持支付宝APP在后台运行\n6. 收到支付宝收款时，电脑端自动播报\n\n支持WiFi和手机流量，全网通用"
+            android:text="1. 电脑端打开智慧收款软件，查看配对码
+2. 在上方输入6位配对码
+3. 点击开启通知监听权限，允许本应用监听通知
+4. 点击开始监听
+5. 保持支付宝APP在后台运行
+6. 收到支付宝收款时，电脑端自动播报
+
+支持WiFi和手机流量，全网通用"
             android:textSize="13sp"
             android:lineSpacingExtra="5dp"
             android:textColor="#666666"
