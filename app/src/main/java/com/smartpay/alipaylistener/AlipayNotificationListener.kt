@@ -22,11 +22,7 @@ class AlipayNotificationListener : NotificationListenerService() {
 
         val packageName = sbn.packageName
 
-        // 只处理支付宝的通知
-        if (packageName != ALIPAY_PACKAGE) {
-            return
-        }
-
+        // 【调试模式】先打印所有通知，确认服务是否正常
         try {
             val notification = sbn.notification ?: return
             val extras = notification.extras ?: return
@@ -37,7 +33,12 @@ class AlipayNotificationListener : NotificationListenerService() {
 
             val fullText = "$title $text $bigText"
 
-            LogManager.addLog("收到通知", "标题:$title | 内容:$text")
+            LogManager.addLog("收到通知", "包名:$packageName | 标题:$title | 内容:$text")
+
+            // 只处理支付宝的通知
+            if (packageName != ALIPAY_PACKAGE) {
+                return
+            }
 
             // 先排除付款方/待付款的通知
             if (isPayerNotification(fullText)) {
