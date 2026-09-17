@@ -22,14 +22,9 @@ class AlipayNotificationListener : NotificationListenerService() {
         processNotification(sbn)
     }
 
-    override fun onNotificationUpdated(sbn: StatusBarNotification?) {
-        super.onNotificationUpdated(sbn)
-        if (sbn == null) return
-        processNotification(sbn)
-    }
-
     /**
      * 处理通知（新通知和更新通知都走这里）
+     * 通知更新时也会再次触发onNotificationPosted
      */
     private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
