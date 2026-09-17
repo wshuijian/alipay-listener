@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
     private lateinit var btnOpenNotificationAccess: Button
+    private lateinit var btnOpenAccessibility: Button
     private lateinit var btnTestNotify: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
@@ -39,6 +40,7 @@ class MainActivity : Activity() {
         btnStart = findViewById(R.id.btn_start)
         btnStop = findViewById(R.id.btn_stop)
         btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
+        btnOpenAccessibility = findViewById(R.id.btn_open_accessibility)
         btnTestNotify = findViewById(R.id.btn_test_notify)
         tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
@@ -83,10 +85,16 @@ class MainActivity : Activity() {
             startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
         }
 
+        // 打开无障碍服务设置
+        btnOpenAccessibility.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            Toast.makeText(this, "找到支付宝收款监听，打开开关", Toast.LENGTH_LONG).show()
+        }
+
         // 测试通知按钮
         btnTestNotify.setOnClickListener {
             sendTestNotification()
-            Toast.makeText(this, "已发送测试通知，看日志区有没有收到", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "已发送测试通知", Toast.LENGTH_SHORT).show()
         }
 
         updateStatus()
@@ -117,12 +125,16 @@ class MainActivity : Activity() {
 
     private fun updateStatus() {
         val isNotificationEnabled = isNotificationServiceEnabled()
+        val isAccessibilityEnabled = isAccessibilityServiceEnabled()
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val pairCode = prefs.getString(KEY_PAIR_CODE, "未设置")
 
         val status = buildString {
             append("通知监听权限: ")
-            append(if (isNotificationEnabled) "✅ 已开启" else "❌ 未开启（请先开启）")
+            append(if (isNotificationEnabled) "✅ 已开启" else "❌ 未开启")
+            append("\n")
+            append("无障碍服务: ")
+            append(if (isAccessibilityEnabled) "✅ 已开启" else "❌ 未开启（必须）")
             append("\n")
             append("配对码: ")
             append(pairCode)
@@ -151,11 +163,19 @@ class MainActivity : Activity() {
         return false
     }
 
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expectedService = "$packageName/com.smartpay.alipaylistener.AlipayAccessibilityService"
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        )
+        return enabledServices?.contains(expectedService) == true
+    }
+
     /**
-     * 发送测试通知，验证通知监听服务是否正常工作
+     * 发送测试通知
      */
     private fun sendTestNotification() {
-        // 创建通知渠道
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID_TEST,
@@ -166,7 +186,6 @@ class MainActivity : Activity() {
             manager.createNotificationChannel(channel)
         }
 
-        // 发送通知
         val notification = NotificationCompat.Builder(this, CHANNEL_ID_TEST)
             .setContentTitle("支付宝收款监听测试")
             .setContentText("你已成功收款 0.01 元")
