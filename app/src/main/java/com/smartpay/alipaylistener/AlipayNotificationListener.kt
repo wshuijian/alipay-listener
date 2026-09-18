@@ -26,7 +26,9 @@ class AlipayNotificationListener : NotificationListenerService() {
         private val processedKeys = mutableSetOf<String>()
 
         // 金额正则：从"你已成功收款0.01元"里提取0.01
-        private val AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
+        private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
+        // 微信金额正则：从"微信支付收款0.01元"里提取0.01
+        private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
     }
 
     override fun onListenerConnected() {
@@ -263,9 +265,8 @@ class AlipayNotificationListener : NotificationListenerService() {
     }
 
     /**
-     * 第二阶段：处理支付宝收款通知
-     * 只处理 channelId=alipay_default 的通知
-     * 从 title 中提取金额，发送MQTT
+     * 处理收款通知
+     * 同时支持支付宝和微信
      */
     private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
@@ -274,26 +275,8 @@ class AlipayNotificationListener : NotificationListenerService() {
             val notification = sbn.notification ?: return
             val extras = notification.extras ?: return
 
-            // 只处理支付宝的通知
-            if (packageName != ALIPAY_PACKAGE) {
-                return
-            }
-
-            // 只处理收款通知通道，排除"收钱提醒助手"那个voice_helper通道
-            val channelId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                notification.channelId ?: ""
-            } else {
-                ""
-            }
-
-            if (channelId != ALIPAY_PAY_CHANNEL) {
-                return
-            }
-
             val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
-
-            LogManager.addLog("收到支付宝收款通知", "title=$title | text=$text")
 
             // 防重复：用通知key+postTime去重
             val eventKey = "${sbn.key}_${sbn.postTime}"
@@ -304,20 +287,57 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
-            // 从title中提取金额："你已成功收款0.01元（老顾客消费）" → 0.01
-            val matcher = AMOUNT_PATTERN.matcher(title)
-            if (!matcher.find()) {
-                LogManager.addLog("解析失败", "title中没找到金额")
-                return
+            when (packageName) {
+                // 处理支付宝
+                ALIPAY_PACKAGE -> {
+                    val channelId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        notification.channelId ?: ""
+                    } else {
+                        ""
+                    }
+                    // 只处理收款通知通道，排除"收钱提醒助手"那个voice_helper通道
+                    if (channelId != ALIPAY_PAY_CHANNEL) {
+                        return
+                    }
+
+                    LogManager.addLog("支付宝收款通知", "title=$title | text=$text")
+
+                    // 从title中提取金额："你已成功收款0.01元（老顾客消费）" → 0.01
+                    val matcher = ALIPAY_AMOUNT_PATTERN.matcher(title)
+                    if (!matcher.find()) {
+                        LogManager.addLog("支付宝解析失败", "title中没找到金额")
+                        return
+                    }
+
+                    val amount = matcher.group(1)
+                    LogManager.addLog("✅ 支付宝解析成功", "金额:¥$amount")
+
+                    // 发送给PC端
+                    LogManager.addLog("MQTT", "正在发送支付宝金额${amount}到PC端...")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title")
+                    LogManager.addLog("MQTT", "发送完成")
+                }
+
+                // 处理微信
+                WECHAT_PACKAGE -> {
+                    LogManager.addLog("微信收款通知", "title=$title | text=$text")
+
+                    // 从text中提取金额："微信支付收款0.01元(老顾客第50次消费)" → 0.01
+                    val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
+                    if (!matcher.find()) {
+                        LogManager.addLog("微信解析失败", "text中没找到金额")
+                        return
+                    }
+
+                    val amount = matcher.group(1)
+                    LogManager.addLog("✅ 微信解析成功", "金额:¥$amount")
+
+                    // 发送给PC端
+                    LogManager.addLog("MQTT", "正在发送微信金额${amount}到PC端...")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text")
+                    LogManager.addLog("MQTT", "发送完成")
+                }
             }
-
-            val amount = matcher.group(1)
-            LogManager.addLog("✅ 解析成功", "金额:¥$amount")
-
-            // 发送给PC端（MQTT全网通）
-            LogManager.addLog("MQTT", "正在发送金额${amount}到PC端...")
-            MqttClientManager.sendPayment(amount = amount, rawText = title)
-            LogManager.addLog("MQTT", "发送完成")
 
         } catch (e: Exception) {
             LogManager.addLog("❌ 异常", e.message ?: "未知错误")
