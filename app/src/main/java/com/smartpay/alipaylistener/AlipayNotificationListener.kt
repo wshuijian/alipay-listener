@@ -19,11 +19,14 @@ class AlipayNotificationListener : NotificationListenerService() {
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
-        // 第二阶段：关闭纯诊断模式，开启金额解析和MQTT发送
-        private const val DIAGNOSTICS_ONLY = false
+        // 第三阶段：纯诊断模式，只记录，不解析，不发送MQTT
+        private const val DIAGNOSTICS_ONLY = true
 
         // 防重复：记录已经处理过的通知key
         private val processedKeys = mutableSetOf<String>()
+
+        // 记录已经出现过的通知key，用于判断是POST还是UPDATE
+        private val seenNotificationKeys = mutableSetOf<String>()
 
         // 金额正则：从"你已成功收款0.01元"里提取0.01
         private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
@@ -86,17 +89,25 @@ class AlipayNotificationListener : NotificationListenerService() {
         val notification = sbn.notification
         val extras = notification?.extras
 
-        val summary = buildNotificationSummary(sbn, "POST")
+        // 判断是新通知POST还是通知更新UPDATE
+        val event: String
+        if (seenNotificationKeys.contains(sbn.key)) {
+            event = "UPDATE"
+        } else {
+            event = "POST"
+            seenNotificationKeys.add(sbn.key)
+        }
 
-        LogManager.addLog("通知POST", summary)
-        Log.i(TAG, "onNotificationPosted\n$summary")
+        val summary = buildNotificationSummary(sbn, event)
 
-        // 支付宝或微信的通知，都打印完整extras
-        if (sbn.packageName == ALIPAY_PACKAGE || sbn.packageName == WECHAT_PACKAGE) {
-            val sourceName = if (sbn.packageName == ALIPAY_PACKAGE) "支付宝" else "微信"
-            LogManager.addLog("${sourceName}POST", "收到${sourceName}通知，输出完整 extras")
-            Log.i(TAG, "$sourceName notification posted, dumping extras")
-            dumpExtras(extras, "${sourceName}POST extras")
+        LogManager.addLog("通知$event", summary)
+        Log.i(TAG, "onNotificationPosted ($event)\n$summary")
+
+        // 支付宝的所有通知都打印完整extras，不管是POST还是UPDATE
+        if (sbn.packageName == ALIPAY_PACKAGE) {
+            LogManager.addLog("支付宝$event", "收到支付宝$event通知，输出完整 extras")
+            Log.i(TAG, "Alipay $event notification, dumping extras")
+            dumpExtras(extras, "支付宝${event} extras")
         }
     }
 
