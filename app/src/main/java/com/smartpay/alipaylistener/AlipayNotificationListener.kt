@@ -16,6 +16,7 @@ class AlipayNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "AlipayListener"
         private const val ALIPAY_PACKAGE = "com.eg.android.AlipayGphone"
+        private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
         // 第二阶段：关闭纯诊断模式，开启金额解析和MQTT发送
@@ -88,10 +89,12 @@ class AlipayNotificationListener : NotificationListenerService() {
         LogManager.addLog("通知POST", summary)
         Log.i(TAG, "onNotificationPosted\n$summary")
 
-        if (sbn.packageName == ALIPAY_PACKAGE) {
-            LogManager.addLog("支付宝POST", "收到支付宝通知，输出完整 extras")
-            Log.i(TAG, "Alipay notification posted, dumping extras")
-            dumpExtras(extras, "支付宝POST extras")
+        // 支付宝或微信的通知，都打印完整extras
+        if (sbn.packageName == ALIPAY_PACKAGE || sbn.packageName == WECHAT_PACKAGE) {
+            val sourceName = if (sbn.packageName == ALIPAY_PACKAGE) "支付宝" else "微信"
+            LogManager.addLog("${sourceName}POST", "收到${sourceName}通知，输出完整 extras")
+            Log.i(TAG, "$sourceName notification posted, dumping extras")
+            dumpExtras(extras, "${sourceName}POST extras")
         }
     }
 
