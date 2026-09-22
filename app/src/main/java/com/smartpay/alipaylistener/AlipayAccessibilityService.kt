@@ -18,7 +18,7 @@ import java.util.*
 class AlipayAccessibilityService : AccessibilityService() {
     private var lastTriggerTime = 0L
     private val screenshotDir by lazy {
-        File(android.os.Environment.getExternalStorageDirectory(), "SmartPayScreenshots").apply { mkdirs() }
+        File(getExternalFilesDir(null), "screenshots").apply { mkdirs() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
