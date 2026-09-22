@@ -3,83 +3,70 @@
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 无障碍服务 - 纯诊断模式：只读支付宝/微信页面文本，不做任何业务判断
- * 目的：验证能不能读到支付页面、取消支付、收款状态的文本
- * 不做自动点击、不修改页面、不发送MQTT
+ * 无障碍服务 - 纯诊断模式：遍历所有系统窗口，找邮付小助手悬浮窗里的金额
+ * 不做任何业务操作，只打印日志
  */
 class AlipayAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "无障碍诊断"
-        private val TARGET_PACKAGES = setOf(
-            "com.eg.android.AlipayGphone", // 支付宝
-            "com.tencent.mm"                // 微信
-        )
-        private val lastLogMap = mutableMapOf<String, Long>()
-        private const val DEDUP_INTERVAL = 2000L // 2秒内相同内容不重复打日志
+        private var lastLogHash = 0L
+        private var lastLogTime = 0L
+        private const val DEDUP_INTERVAL = 2000L
+        private val keywords = listOf("邮付", "收款", "到账", "¥", "￥", "元")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
         try {
-            val packageName = event.packageName?.toString() ?: return
-            // 只处理支付宝和微信的事件
-            if (packageName !in TARGET_PACKAGES) return
+            // 遍历所有窗口，找悬浮窗
+            val windows = windows ?: return
+            if (windows.isEmpty()) return
 
             val timestamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.CHINA).format(Date())
-            val eventTypeStr = when(event.eventType) {
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "窗口切换"
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "内容变化"
-                AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> "通知变化"
-                else -> "其他事件(${event.eventType})"
+            val allTexts = mutableListOf<String>()
+
+            for (window in windows) {
+                val rootNode = window.root
+                if (rootNode == null) continue
+                traverseNode(rootNode, allTexts, 0)
+                val winPackage = rootNode.packageName?.toString() ?: "unknown"
+                LogManager.addLog("窗口诊断", "窗口#${window.id} 包名=$winPackage 类型=${window.type}")
             }
 
-            // 遍历根节点收集所有可读文本
-            val rootNode = rootInActiveWindow ?: return
-            val texts = mutableListOf<String>()
-            traverseNode(rootNode, texts, depth = 0)
-
-            // 2秒去重
-            val contentKey = texts.joinToString("|").hashCode().toString()
-            val lastTime = lastLogMap[contentKey] ?: 0L
-            if (System.currentTimeMillis() - lastTime < DEDUP_INTERVAL) {
+            // 去重：相同内容2秒内不重复打
+            val hash = allTexts.joinToString("|").hashCode().toLong()
+            if (hash == lastLogHash && System.currentTimeMillis() - lastLogTime < DEDUP_INTERVAL) {
                 return
             }
-            lastLogMap[contentKey] = System.currentTimeMillis()
-            if (lastLogMap.size > 200) lastLogMap.clear()
+            lastLogHash = hash
+            lastLogTime = System.currentTimeMillis()
 
-            // 写日志
-            val appName = if (packageName == "com.eg.android.AlipayGphone") "支付宝" else "微信"
-            LogManager.addLog("=== $appName $timestamp ===", "事件: $eventTypeStr")
-            LogManager.addLog("页面文本", texts.joinToString(" / "))
-            
-            // 纯诊断：单独打印包含收款/到账/金额关键词的候选文本
-            if (packageName == "com.tencent.mm") {
-                val keywords = listOf("收款", "到账", "元", "¥", "￥")
-                texts.forEach { t ->
-                    if (keywords.any { t.contains(it) }) {
-                        LogManager.addLog("邮付无障碍候选文本", t)
-                    }
+            LogManager.addLog("=== 窗口诊断 $timestamp ===", "共${windows.size}个窗口")
+            // 打印所有包含关键词的候选文本
+            allTexts.forEach { t ->
+                if (keywords.any { t.contains(it) }) {
+                    LogManager.addLog("悬浮窗候选文本", t)
                 }
             }
         } catch (e: Exception) {
-            LogManager.addLog("无障碍异常", e.message ?: "未知错误")
+            LogManager.addLog("无障碍诊断异常", e.message ?: "未知错误")
         }
     }
 
     /**
-     * 递归遍历节点收集文本
+     * 递归遍历节点收集所有文本
      */
     private fun traverseNode(node: AccessibilityNodeInfo?, texts: MutableList<String>, depth: Int) {
-        if (node == null || depth > 10) return
+        if (node == null || depth > 15) return
         try {
             if (!node.text.isNullOrEmpty()) texts.add(node.text.toString())
-            if (!node.contentDescription.isNullOrEmpty()) texts.add("[按钮]" + node.contentDescription.toString())
+            if (!node.contentDescription.isNullOrEmpty()) texts.add(node.contentDescription.toString())
             for (i in 0 until node.childCount) {
                 traverseNode(node.getChild(i), texts, depth + 1)
             }
@@ -88,12 +75,5 @@ class AlipayAccessibilityService : AccessibilityService() {
         }
     }
 
-    override fun onInterrupt() {
-        LogManager.addLog("无障碍诊断", "服务中断")
-    }
-
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        LogManager.addLog("✅ 无障碍诊断服务已启动", "现在打开支付宝/微信支付页面，日志会自动打印页面所有文本")
-    }
+    override fun onInterrupt() {}
 }
