@@ -322,7 +322,8 @@ class AlipayNotificationListener : NotificationListenerService() {
 
             // 纯诊断：针对邮付小助手，打印所有POST/UPDATE事件
             if (packageName == WECHAT_PACKAGE && title == "邮付小助手") {
-                LogManager.addLog("邮付诊断", "事件=$event | key=$key | postTime=${formatTime(sbn.postTime)}")
+                val eventName = if (isNewPost) "POST" else "UPDATE"
+                LogManager.addLog("邮付诊断", "事件=$eventName | key=${sbn.key} | postTime=${formatTime(sbn.postTime)}")
                 LogManager.addLog("邮付诊断", "  title=$title")
                 LogManager.addLog("邮付诊断", "  text=$text")
                 LogManager.addLog("邮付诊断", "  bigText=$bigText")
