@@ -318,6 +318,23 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
+            // 全量递归打印邮付小助手通知的所有extras字段
+            if (packageName == WECHAT_PACKAGE && title == "邮付小助手") {
+                LogManager.addLog("邮付全量extras", "开始打印所有字段...")
+                val ex = notification.extras
+                for (key in ex.keySet()) {
+                    try {
+                        val value = ex.get(key)
+                        LogManager.addLog("邮付全量extras", "$key = $value")
+                    } catch (e: Exception) {}
+                }
+                // 专门读MessagingStyle的消息数组
+                val msgs = ex.get(android.app.Notification.EXTRA_MESSAGES)
+                if (msgs != null) {
+                    LogManager.addLog("邮付全量extras", "发现EXTRA_MESSAGES数组: $msgs")
+                }
+            }
+
 
 
 
