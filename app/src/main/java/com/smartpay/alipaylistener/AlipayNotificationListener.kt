@@ -328,12 +328,17 @@ class AlipayNotificationListener : NotificationListenerService() {
                 
                 // 尝试inflate通知的RemoteViews，遍历里面所有TextView读文字
                 try {
-                    val remoteViews = notification.contentView
+                    LogManager.addLog("邮付诊断", "contentView是否为null: ${notification.contentView == null}")
+                    LogManager.addLog("邮付诊断", "bigContentView是否为null: ${notification.bigContentView == null}")
+                    // 先试contentView，再试bigContentView
+                    val remoteViews = notification.contentView ?: notification.bigContentView
                     if (remoteViews != null) {
                         val tempView = remoteViews.apply(this@AlipayNotificationListener, null)
                         val rvTexts = mutableListOf<String>()
                         traverseView(tempView, rvTexts, 0)
                         LogManager.addLog("邮付诊断", "RemoteViews里的文本: ${rvTexts.joinToString(" / ")}")
+                    } else {
+                        LogManager.addLog("邮付诊断", "两个RemoteViews都是null")
                     }
                 } catch (e: Exception) {
                     LogManager.addLog("邮付诊断", "RemoteViews读取失败: ${e.message}")
