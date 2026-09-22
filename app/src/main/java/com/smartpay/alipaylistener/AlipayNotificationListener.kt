@@ -55,15 +55,16 @@ class AlipayNotificationListener : NotificationListenerService() {
             return
         }
 
+        // 最开头先判断是不是新POST，必须在logNotificationPosted加集合之前判断
+        val isNewPost = !seenNotificationKeys.contains(sbn.key)
+        // 时间过滤：只处理10秒内新到的通知，刚启动时历史通知直接跳过
+        val now = System.currentTimeMillis()
+        val timeDiff = now - sbn.postTime
+
         logNotificationPosted(sbn)
 
         // 调试阶段到此为止，不进入金额解析/MQTT 流程，避免多个问题混在一起。
         if (!DIAGNOSTICS_ONLY) {
-            // 先判断是不是新POST事件（在logNotificationPosted加集合之前判断）
-            val isNewPost = !seenNotificationKeys.contains(sbn.key)
-            // 时间过滤：只处理10秒内新到的通知，刚启动时历史通知直接跳过
-            val now = System.currentTimeMillis()
-            val timeDiff = now - sbn.postTime
             if (timeDiff > 10000) {
                 LogManager.addLog("通知过滤", "跳过${timeDiff/1000}秒前的历史通知: $sbn.packageName")
                 return
