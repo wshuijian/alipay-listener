@@ -65,6 +65,11 @@
                 android:value="支付宝收款监听保活服务" />
         </service>
 
+        <!-- 云音箱秒播MVP服务 -->
+        <service
+            android:name="com.smartpay.alipaylistener.SpeakerService"
+            android:exported="false" />
+
     </application>
 
 </manifest>
