@@ -311,17 +311,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
-            // 先识别银行卡收款：不管哪个包名，只要标题/内容包含银行卡到账/收款关键词，就直接处理发送
-            val fullText = "$title $text $bigText"
-            val bankMatcher = BANK_CARD_AMOUNT_PATTERN.matcher(fullText)
-            if (bankMatcher.find()) {
-                val bankAmount = bankMatcher.group(1)
-                LogManager.addLog("✅ 银行卡收款解析成功", "金额:¥$bankAmount")
-                LogManager.addLog("MQTT", "正在发送银行卡金额${bankAmount}到PC端...")
-                MqttClientManager.sendPayment(amount = bankAmount, rawText = "BANKCARD|$title $text")
-                LogManager.addLog("MQTT", "发送完成")
-                return  // 处理完直接返回，不进后面的微信/支付宝分支
-            }
+
 
             // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
             if (packageName == WECHAT_PACKAGE && title != "微信收款助手") {
