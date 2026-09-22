@@ -29,8 +29,9 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
             "云音箱服务",
             android.app.NotificationManager.IMPORTANCE_LOW
         )
-        getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(channelId)
-        val notification = android.app.NotificationCompat.Builder(this, channelId)
+        val notificationManager = getSystemService(android.app.NotificationManager::class.java)
+        notificationManager.createNotificationChannel(channel)
+        val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
             .setContentTitle("云音箱秒播服务运行中")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
