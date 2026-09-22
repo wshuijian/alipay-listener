@@ -41,21 +41,28 @@ class AlipayAccessibilityService : AccessibilityService() {
 
     private fun takeScreenshot() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            takeScreenshot(executor = { it.run() }, callback = { screenshot ->
-                try {
-                    val hardwareBuffer = screenshot.hardwareBuffer
-                    val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.colorSpace)
-                    hardwareBuffer.close()
-                    val timestamp = SimpleDateFormat("HHmmss", Locale.CHINA).format(Date())
-                    val file = File(screenshotDir, "youfu_$timestamp.png")
-                    FileOutputStream(file).use { out ->
-                        bitmap?.compress(Bitmap.CompressFormat.PNG, 100, out)
+            val executor = java.util.concurrent.Executor { it.run() }
+            val callback = object : TakeScreenshotCallback {
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    try {
+                        val hardwareBuffer = screenshot.hardwareBuffer
+                        val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.colorSpace)
+                        hardwareBuffer.close()
+                        val timestamp = SimpleDateFormat("HHmmss", Locale.CHINA).format(Date())
+                        val file = File(screenshotDir, "youfu_$timestamp.png")
+                        FileOutputStream(file).use { out ->
+                            bitmap?.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                        LogManager.addLog("无障碍截屏", "截图已保存到: ${file.absolutePath}")
+                    } catch (e: Exception) {
+                        LogManager.addLog("无障碍截屏失败", e.message ?: "未知错误")
                     }
-                    LogManager.addLog("无障碍截屏", "截图已保存到: ${file.absolutePath}")
-                } catch (e: Exception) {
-                    LogManager.addLog("无障碍截屏失败", e.message ?: "未知错误")
                 }
-            })
+                override fun onFailure(errorCode: Int) {
+                    LogManager.addLog("无障碍截屏失败", "错误码: $errorCode")
+                }
+            }
+            takeScreenshot(executor, callback)
         }
     }
 
