@@ -1,4 +1,4 @@
-package com.smartpay.alipaylistener
+﻿package com.smartpay.alipaylistener
 
 import android.app.Notification
 import android.os.Build
@@ -19,53 +19,52 @@ class AlipayNotificationListener : NotificationListenerService() {
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
-        // 第三阶段：纯诊断模式，只记录，不解析，不发送MQTT
-        private const val DIAGNOSTICS_ONLY = true
+        // 绗笁闃舵锛氱函璇婃柇妯″紡锛屽彧璁板綍锛屼笉瑙ｆ瀽锛屼笉鍙戦€丮QTT
+        private const val DIAGNOSTICS_ONLY = false
 
-        // 防重复：记录已经处理过的通知key
+        // 闃查噸澶嶏細璁板綍宸茬粡澶勭悊杩囩殑閫氱煡key
         private val processedKeys = mutableSetOf<String>()
 
-        // 记录已经出现过的通知key，用于判断是POST还是UPDATE
+        // 璁板綍宸茬粡鍑虹幇杩囩殑閫氱煡key锛岀敤浜庡垽鏂槸POST杩樻槸UPDATE
         private val seenNotificationKeys = mutableSetOf<String>()
 
-        // 金额正则：从"你已成功收款0.01元"里提取0.01
-        private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
-        // 微信金额正则：从"微信支付收款0.01元"里提取0.01
-        private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
+        // 閲戦姝ｅ垯锛氫粠"浣犲凡鎴愬姛鏀舵0.01鍏?閲屾彁鍙?.01
+        private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("浣犲凡鎴愬姛鏀舵([\\d]+\\.?[\\d]*)鍏?)
+        // 寰俊閲戦姝ｅ垯锛氫粠"寰俊鏀粯鏀舵0.01鍏?閲屾彁鍙?.01
+        private val WECHAT_AMOUNT_PATTERN = Pattern.compile("寰俊鏀粯鏀舵([\\d]+\\.?[\\d]*)鍏?)
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        LogManager.addLog("系统", "通知监听服务已连接")
-        Log.i(TAG, "通知监听服务已连接")
+        LogManager.addLog("绯荤粺", "閫氱煡鐩戝惉鏈嶅姟宸茶繛鎺?)
+        Log.i(TAG, "閫氱煡鐩戝惉鏈嶅姟宸茶繛鎺?)
         dumpActiveNotifications()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        LogManager.addLog("系统", "通知监听服务已断开")
-        Log.i(TAG, "通知监听服务已断开")
+        LogManager.addLog("绯荤粺", "閫氱煡鐩戝惉鏈嶅姟宸叉柇寮€")
+        Log.i(TAG, "閫氱煡鐩戝惉鏈嶅姟宸叉柇寮€")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         if (sbn == null) {
-            LogManager.addLog("通知POST", "sbn == null")
+            LogManager.addLog("閫氱煡POST", "sbn == null")
             Log.w(TAG, "onNotificationPosted: sbn == null")
             return
         }
 
         logNotificationPosted(sbn)
 
-        // 调试阶段到此为止，不进入金额解析/MQTT 流程，避免多个问题混在一起。
-        if (!DIAGNOSTICS_ONLY) {
+        // 璋冭瘯闃舵鍒版涓烘锛屼笉杩涘叆閲戦瑙ｆ瀽/MQTT 娴佺▼锛岄伩鍏嶅涓棶棰樻贩鍦ㄤ竴璧枫€?        if (!DIAGNOSTICS_ONLY) {
             processNotification(sbn)
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         if (sbn == null) {
-            LogManager.addLog("通知REMOVE", "sbn == null")
+            LogManager.addLog("閫氱煡REMOVE", "sbn == null")
             Log.w(TAG, "onNotificationRemoved: sbn == null")
             return
         }
@@ -78,7 +77,7 @@ class AlipayNotificationListener : NotificationListenerService() {
         reason: Int
     ) {
         if (sbn == null) {
-            LogManager.addLog("通知REMOVE", "sbn == null, reason=$reason")
+            LogManager.addLog("閫氱煡REMOVE", "sbn == null, reason=$reason")
             Log.w(TAG, "onNotificationRemoved: sbn == null, reason=$reason")
             return
         }
@@ -89,7 +88,7 @@ class AlipayNotificationListener : NotificationListenerService() {
         val notification = sbn.notification
         val extras = notification?.extras
 
-        // 判断是新通知POST还是通知更新UPDATE
+        // 鍒ゆ柇鏄柊閫氱煡POST杩樻槸閫氱煡鏇存柊UPDATE
         val event: String
         if (seenNotificationKeys.contains(sbn.key)) {
             event = "UPDATE"
@@ -100,14 +99,14 @@ class AlipayNotificationListener : NotificationListenerService() {
 
         val summary = buildNotificationSummary(sbn, event)
 
-        LogManager.addLog("通知$event", summary)
+        LogManager.addLog("閫氱煡$event", summary)
         Log.i(TAG, "onNotificationPosted ($event)\n$summary")
 
-        // 支付宝的所有通知都打印完整extras，不管是POST还是UPDATE
+        // 鏀粯瀹濈殑鎵€鏈夐€氱煡閮芥墦鍗板畬鏁磂xtras锛屼笉绠℃槸POST杩樻槸UPDATE
         if (sbn.packageName == ALIPAY_PACKAGE) {
-            LogManager.addLog("支付宝${event}", "收到支付宝${event}通知，输出完整 extras")
+            LogManager.addLog("鏀粯瀹?{event}", "鏀跺埌鏀粯瀹?{event}閫氱煡锛岃緭鍑哄畬鏁?extras")
             Log.i(TAG, "Alipay ${event} notification, dumping extras")
-            dumpExtras(extras, "支付宝${event} extras")
+            dumpExtras(extras, "鏀粯瀹?{event} extras")
         }
     }
 
@@ -124,14 +123,14 @@ class AlipayNotificationListener : NotificationListenerService() {
             appendLine("key=${sbn.key}")
             appendLine("id=${sbn.id}")
             appendLine("tag=${sbn.tag}")
-            appendLine("reason=${reason?.toString() ?: "N/A(单参数回调未提供 reason)"}")
+            appendLine("reason=${reason?.toString() ?: "N/A(鍗曞弬鏁板洖璋冩湭鎻愪緵 reason)"}")
             appendLine("title=$title")
             appendLine("text=$text")
             appendLine("bigText=$bigText")
             appendLine("postTime=${sbn.postTime} (${formatTime(sbn.postTime)})")
         }.trimEnd()
 
-        LogManager.addLog("通知REMOVE", summary)
+        LogManager.addLog("閫氱煡REMOVE", summary)
         Log.i(TAG, "onNotificationRemoved\n$summary")
     }
 
@@ -139,28 +138,28 @@ class AlipayNotificationListener : NotificationListenerService() {
         try {
             val active = getActiveNotifications()
             val count = active?.size ?: 0
-            LogManager.addLog("系统", "onListenerConnected: activeNotifications 数量=$count")
+            LogManager.addLog("绯荤粺", "onListenerConnected: activeNotifications 鏁伴噺=$count")
             Log.i(TAG, "onListenerConnected: activeNotifications count=$count")
 
             if (active == null || active.isEmpty()) {
-                LogManager.addLog("系统", "当前没有 active notifications")
+                LogManager.addLog("绯荤粺", "褰撳墠娌℃湁 active notifications")
                 return
             }
 
             active.forEach { sbn ->
                 val summary = buildNotificationSummary(sbn, "ACTIVE")
 
-                LogManager.addLog("通知ACTIVE", summary)
+                LogManager.addLog("閫氱煡ACTIVE", summary)
                 Log.i(TAG, "active notification\n$summary")
 
                 if (sbn.packageName == ALIPAY_PACKAGE) {
-                    LogManager.addLog("支付宝ACTIVE", "active 中存在支付宝通知，输出完整 extras")
+                    LogManager.addLog("鏀粯瀹滱CTIVE", "active 涓瓨鍦ㄦ敮浠樺疂閫氱煡锛岃緭鍑哄畬鏁?extras")
                     Log.i(TAG, "Alipay active notification, dumping extras")
-                    dumpExtras(sbn.notification?.extras, "支付宝ACTIVE extras")
+                    dumpExtras(sbn.notification?.extras, "鏀粯瀹滱CTIVE extras")
                 }
             }
         } catch (e: Exception) {
-            LogManager.addLog("系统", "读取 activeNotifications 异常: ${e.message}")
+            LogManager.addLog("绯荤粺", "璇诲彇 activeNotifications 寮傚父: ${e.message}")
             Log.e(TAG, "getActiveNotifications failed", e)
         }
     }
@@ -201,13 +200,13 @@ class AlipayNotificationListener : NotificationListenerService() {
         }
 
         if (extras.keySet().isEmpty()) {
-            LogManager.addLog(label, "extras 为空")
+            LogManager.addLog(label, "extras 涓虹┖")
             Log.i(TAG, "$label: extras is empty")
             return
         }
 
         val keys = extras.keySet().sorted()
-        LogManager.addLog(label, "extras 共 ${keys.size} 个字段")
+        LogManager.addLog(label, "extras 鍏?${keys.size} 涓瓧娈?)
         keys.forEach { key ->
             val line = "$key=${describeExtrasValue(extras, key)}"
             LogManager.addLog(label, line)
@@ -233,7 +232,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                 else -> "${value.javaClass.simpleName}: $value"
             }
         } catch (e: Exception) {
-            "<无法读取: ${e.message}>"
+            "<鏃犳硶璇诲彇: ${e.message}>"
         }
     }
 
@@ -276,8 +275,8 @@ class AlipayNotificationListener : NotificationListenerService() {
     }
 
     /**
-     * 处理收款通知
-     * 同时支持支付宝和微信
+     * 澶勭悊鏀舵閫氱煡
+     * 鍚屾椂鏀寔鏀粯瀹濆拰寰俊
      */
     private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
@@ -289,70 +288,67 @@ class AlipayNotificationListener : NotificationListenerService() {
             val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
 
-            // 防重复：用通知key+postTime去重
+            // 闃查噸澶嶏細鐢ㄩ€氱煡key+postTime鍘婚噸
             val eventKey = "${sbn.key}_${sbn.postTime}"
             if (processedKeys.contains(eventKey)) {
-                LogManager.addLog("防重复", "同一条通知，忽略")
+                LogManager.addLog("闃查噸澶?, "鍚屼竴鏉￠€氱煡锛屽拷鐣?)
                 return
             }
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
             when (packageName) {
-                // 处理支付宝
-                ALIPAY_PACKAGE -> {
+                // 澶勭悊鏀粯瀹?                ALIPAY_PACKAGE -> {
                     val channelId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         notification.channelId ?: ""
                     } else {
                         ""
                     }
-                    // 只处理收款通知通道，排除"收钱提醒助手"那个voice_helper通道
+                    // 鍙鐞嗘敹娆鹃€氱煡閫氶亾锛屾帓闄?鏀堕挶鎻愰啋鍔╂墜"閭ｄ釜voice_helper閫氶亾
                     if (channelId != ALIPAY_PAY_CHANNEL) {
                         return
                     }
 
-                    LogManager.addLog("支付宝收款通知", "title=$title | text=$text")
+                    LogManager.addLog("鏀粯瀹濇敹娆鹃€氱煡", "title=$title | text=$text")
 
-                    // 从title中提取金额："你已成功收款0.01元（老顾客消费）" → 0.01
+                    // 浠巘itle涓彁鍙栭噾棰濓細"浣犲凡鎴愬姛鏀舵0.01鍏冿紙鑰侀【瀹㈡秷璐癸級" 鈫?0.01
                     val matcher = ALIPAY_AMOUNT_PATTERN.matcher(title)
                     if (!matcher.find()) {
-                        LogManager.addLog("支付宝解析失败", "title中没找到金额")
+                        LogManager.addLog("鏀粯瀹濊В鏋愬け璐?, "title涓病鎵惧埌閲戦")
                         return
                     }
 
                     val amount = matcher.group(1)
-                    LogManager.addLog("✅ 支付宝解析成功", "金额:¥$amount")
+                    LogManager.addLog("鉁?鏀粯瀹濊В鏋愭垚鍔?, "閲戦:楼$amount")
 
-                    // 发送给PC端
-                    LogManager.addLog("MQTT", "正在发送支付宝金额${amount}到PC端...")
+                    // 鍙戦€佺粰PC绔?                    LogManager.addLog("MQTT", "姝ｅ湪鍙戦€佹敮浠樺疂閲戦${amount}鍒癙C绔?..")
                     MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title")
-                    LogManager.addLog("MQTT", "发送完成")
+                    LogManager.addLog("MQTT", "鍙戦€佸畬鎴?)
                 }
 
-                // 处理微信
+                // 澶勭悊寰俊
                 WECHAT_PACKAGE -> {
-                    LogManager.addLog("微信收款通知", "title=$title | text=$text")
+                    LogManager.addLog("寰俊鏀舵閫氱煡", "title=$title | text=$text")
 
-                    // 从text中提取金额："微信支付收款0.01元(老顾客第50次消费)" → 0.01
+                    // 浠巘ext涓彁鍙栭噾棰濓細"寰俊鏀粯鏀舵0.01鍏?鑰侀【瀹㈢50娆℃秷璐?" 鈫?0.01
                     val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
                     if (!matcher.find()) {
-                        LogManager.addLog("微信解析失败", "text中没找到金额")
+                        LogManager.addLog("寰俊瑙ｆ瀽澶辫触", "text涓病鎵惧埌閲戦")
                         return
                     }
 
                     val amount = matcher.group(1)
-                    LogManager.addLog("✅ 微信解析成功", "金额:¥$amount")
+                    LogManager.addLog("鉁?寰俊瑙ｆ瀽鎴愬姛", "閲戦:楼$amount")
 
-                    // 发送给PC端
-                    LogManager.addLog("MQTT", "正在发送微信金额${amount}到PC端...")
+                    // 鍙戦€佺粰PC绔?                    LogManager.addLog("MQTT", "姝ｅ湪鍙戦€佸井淇￠噾棰?{amount}鍒癙C绔?..")
                     MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text")
-                    LogManager.addLog("MQTT", "发送完成")
+                    LogManager.addLog("MQTT", "鍙戦€佸畬鎴?)
                 }
             }
 
         } catch (e: Exception) {
-            LogManager.addLog("❌ 异常", e.message ?: "未知错误")
-            Log.e(TAG, "处理通知异常", e)
+            LogManager.addLog("鉂?寮傚父", e.message ?: "鏈煡閿欒")
+            Log.e(TAG, "澶勭悊閫氱煡寮傚父", e)
         }
     }
 }

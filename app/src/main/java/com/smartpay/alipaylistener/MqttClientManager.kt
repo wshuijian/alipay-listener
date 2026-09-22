@@ -144,8 +144,10 @@ object MqttClientManager {
     }
 
     fun sendPayment(amount: String, rawText: String) {
+        log("收到收款通知准备发送: 金额=$amount, 原始内容=${rawText.take(50)}")
+        log("MQTT状态: isConnected=$isConnected, isPaired=$isPaired, client是否为空=${mqttClient == null}")
         if (!isConnected || !isPaired || mqttClient == null) {
-            log("未连接或未配对，无法发送")
+            log("❌ 未连接或未配对，丢弃这笔收款通知: ¥$amount")
             return
         }
 
@@ -160,11 +162,13 @@ object MqttClientManager {
                 put("received_at", System.currentTimeMillis())
                 put("raw_text", rawText)
             }
+            log("准备发布MQTT: topic=$paymentTopic, 金额=$amount, eventId=$eventId")
             val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
             mqttClient?.publish(paymentTopic, message)
-            log("✅ 已推送收款: ¥$amount")
+            log("✅ MQTT发布成功: ¥$amount, topic=$paymentTopic")
         } catch (e: Exception) {
-            log("发送收款失败: ${e.message}")
+            log("❌ MQTT发布失败: ${e.message}")
+            e.printStackTrace()
         }
     }
 
