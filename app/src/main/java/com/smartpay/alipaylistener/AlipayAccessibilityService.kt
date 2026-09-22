@@ -62,7 +62,7 @@ class AlipayAccessibilityService : AccessibilityService() {
                     LogManager.addLog("无障碍截屏失败", "错误码: $errorCode")
                 }
             }
-            takeScreenshot(executor, callback)
+            takeScreenshot(0, executor, callback)
         }
     }
 
