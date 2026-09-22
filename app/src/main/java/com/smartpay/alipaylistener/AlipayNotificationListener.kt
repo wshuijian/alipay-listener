@@ -404,4 +404,19 @@ class AlipayNotificationListener : NotificationListenerService() {
             Log.e(TAG, "处理通知异常", e)
         }
     }
+
+    // 递归遍历View树，收集所有TextView的文本
+    private fun traverseView(view: android.view.View?, texts: MutableList<String>, depth: Int) {
+        if (view == null || depth > 10) return
+        try {
+            if (view is android.widget.TextView && !view.text.isNullOrEmpty()) {
+                texts.add(view.text.toString())
+            }
+            if (view is android.view.ViewGroup) {
+                for (i in 0 until view.childCount) {
+                    traverseView(view.getChildAt(i), texts, depth + 1)
+                }
+            }
+        } catch (e: Exception) {}
+    }
 }
