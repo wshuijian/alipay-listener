@@ -83,6 +83,13 @@ class AlipayNotificationListener : NotificationListenerService() {
             Log.w(TAG, "onNotificationRemoved: sbn == null")
             return
         }
+        // 纯诊断：邮付小助手删除事件
+        if (sbn.packageName == WECHAT_PACKAGE) {
+            val title = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
+            if (title == "邮付小助手") {
+                LogManager.addLog("邮付诊断", "REMOVE事件 | key=${sbn.key} | title=$title")
+            }
+        }
         logNotificationRemoved(sbn, null)
     }
 
@@ -313,33 +320,13 @@ class AlipayNotificationListener : NotificationListenerService() {
 
 
 
-            // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
-            if (packageName == WECHAT_PACKAGE && title != "微信收款助手" && title != "") {
-                LogManager.addLog("其他微信通知", "标题=$title | 内容=$text | 展开内容=$bigText | ticker=${notification.tickerText}")
-                // 延迟2秒后重新读一次通知内容，微信公众号通知POST时金额还没加载，过2秒就有了
-                val notificationKey = sbn.key
-                Thread {
-                    try {
-                        Thread.sleep(2000)
-                        val activeNotifs = activeNotifications
-                        val realNotif = activeNotifs.find { it.key == notificationKey }
-                        if (realNotif != null) {
-                            val realExtras = realNotif.notification?.extras
-                            val realText = realExtras?.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
-                            val realBigText = realExtras?.getCharSequence(Notification.EXTRA_BIG_TEXT, "")?.toString() ?: ""
-                            val realTitle = realExtras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
-                            LogManager.addLog("其他微信通知延迟重读", "标题=$realTitle | 内容=$realText | 展开内容=$realBigText")
-                            // 重新用正则匹配
-                            val fullRealText = "$realTitle $realText $realBigText"
-                            val matcher = AGGREGATE_AMOUNT_PATTERN.matcher(fullRealText)
-                            if (matcher.find()) {
-                                val amount = matcher.group(1)
-                                LogManager.addLog("✅ 聚合收款延迟解析成功", "来源:$realTitle 金额:¥$amount")
-                                MqttClientManager.sendPayment(amount = amount, rawText = "AGGREGATE|$realTitle $realText $realBigText")
-                            }
-                        }
-                    } catch (e: Exception) {}
-                }.start()
+            // 纯诊断：针对邮付小助手，打印所有POST/UPDATE事件
+            if (packageName == WECHAT_PACKAGE && title == "邮付小助手") {
+                LogManager.addLog("邮付诊断", "事件=$event | key=$key | postTime=${formatTime(sbn.postTime)}")
+                LogManager.addLog("邮付诊断", "  title=$title")
+                LogManager.addLog("邮付诊断", "  text=$text")
+                LogManager.addLog("邮付诊断", "  bigText=$bigText")
+                LogManager.addLog("邮付诊断", "  ticker=${notification.tickerText}")
             }
             if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
                 LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text | 展开内容=$bigText")
