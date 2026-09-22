@@ -17,22 +17,23 @@ class AlipayAccessibilityService : AccessibilityService() {
         if (event == null) return
         try {
             val pkg = event.packageName?.toString() ?: return
-            // 只处理微信的事件
-            if (pkg != "com.tencent.mm") return
-            // 遍历事件自带的所有文本，不主动遍历任何窗口
+            // 不做包名过滤，打印所有事件文本，特别是SystemUI的
             event.text.forEach { text ->
                 val t = text.toString()
-                LogManager.addLog("无障碍事件文本", t)
+                // 只打印包含关键词的文本，避免刷屏
+                if (t.contains("邮付") || t.contains("收款") || t.contains("元") || t.contains("¥")) {
+                    LogManager.addLog("无障碍事件文本", "[$pkg] $t")
+                }
                 // 匹配金额
                 val match = amountRegex.find(t)
-                if (match != null && t.contains("收款")) {
+                if (match != null && (t.contains("收款") || t.contains("邮付"))) {
                     val amount = match.groupValues[1]
                     // 10秒内同金额不重复播报
                     val now = System.currentTimeMillis()
                     if (amount != lastAmount || now - lastAmountTime > 10000) {
                         lastAmount = amount
                         lastAmountTime = now
-                        LogManager.addLog("✅ 无障碍抓到邮付金额", "¥$amount")
+                        LogManager.addLog("✅ 无障碍抓到金额", "¥$amount | 来源:$pkg")
                         // 直接走现有MQTT推送
                         MqttClientManager.sendPayment(amount = amount, rawText = "YOUFU|$t")
                     }
