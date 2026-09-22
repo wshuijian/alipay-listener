@@ -32,6 +32,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
         // 微信金额正则：从"微信支付收款0.01元"里提取0.01
         private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
+        // 通用聚合收款正则：所有第三方聚合码/银行公众号通知，只要有收款/到账+金额就提取
+        private val AGGREGATE_AMOUNT_PATTERN = Pattern.compile("(?:收款|到账).*?([\\d]+\\.?[\\d]*)元")
     }
 
     override fun onListenerConnected() {
@@ -298,6 +300,7 @@ class AlipayNotificationListener : NotificationListenerService() {
 
             val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
+            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT, "")?.toString() ?: ""
 
             // 防重复：用通知key+postTime去重
             val eventKey = "${sbn.key}_${sbn.postTime}"
@@ -308,9 +311,24 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
+            // 先识别银行卡收款：不管哪个包名，只要标题/内容包含银行卡到账/收款关键词，就直接处理发送
+            val fullText = "$title $text $bigText"
+            val bankMatcher = BANK_CARD_AMOUNT_PATTERN.matcher(fullText)
+            if (bankMatcher.find()) {
+                val bankAmount = bankMatcher.group(1)
+                LogManager.addLog("✅ 银行卡收款解析成功", "金额:¥$bankAmount")
+                LogManager.addLog("MQTT", "正在发送银行卡金额${bankAmount}到PC端...")
+                MqttClientManager.sendPayment(amount = bankAmount, rawText = "BANKCARD|$title $text")
+                LogManager.addLog("MQTT", "发送完成")
+                return  // 处理完直接返回，不进后面的微信/支付宝分支
+            }
+
             // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
+            if (packageName == WECHAT_PACKAGE && title != "微信收款助手") {
+                LogManager.addLog("其他微信通知", "标题=$title | 内容=$text | 展开内容=$bigText")
+            }
             if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
-                LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text")
+                LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text | 展开内容=$bigText")
             }
 
             when (packageName) {
@@ -364,6 +382,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     LogManager.addLog("MQTT", "发送完成")
                 }
             }
+
 
         } catch (e: Exception) {
             LogManager.addLog("❌ 异常", e.message ?: "未知错误")
