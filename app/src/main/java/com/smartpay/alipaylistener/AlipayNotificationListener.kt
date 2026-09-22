@@ -308,6 +308,11 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
+            // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
+            if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
+                LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text")
+            }
+
             when (packageName) {
                 // 处理支付宝
                 ALIPAY_PACKAGE -> {
