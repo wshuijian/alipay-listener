@@ -318,9 +318,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
-
-
-            // 纯诊断：针对邮付小助手，打印所有事件，包括RemoteViews里的文本
+            // 纯诊断：针对邮付小助手，打印所有事件，包括RemoteViews里的文本，放在最前面保证一定执行
             if (packageName == WECHAT_PACKAGE && title == "邮付小助手") {
                 LogManager.addLog("邮付诊断", "收到事件 | key=${sbn.key} | postTime=${formatTime(sbn.postTime)}")
                 LogManager.addLog("邮付诊断", "  title=$title")
@@ -332,7 +330,6 @@ class AlipayNotificationListener : NotificationListenerService() {
                 try {
                     val remoteViews = notification.contentView
                     if (remoteViews != null) {
-                        val layoutInflater = android.view.LayoutInflater.from(this@AlipayNotificationListener)
                         val tempView = remoteViews.apply(this@AlipayNotificationListener, null)
                         val rvTexts = mutableListOf<String>()
                         traverseView(tempView, rvTexts, 0)
@@ -342,6 +339,10 @@ class AlipayNotificationListener : NotificationListenerService() {
                     LogManager.addLog("邮付诊断", "RemoteViews读取失败: ${e.message}")
                 }
             }
+
+
+
+
             if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
                 LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text | 展开内容=$bigText")
             }
