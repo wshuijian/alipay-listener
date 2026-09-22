@@ -49,8 +49,12 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         etPairCode.setText(prefs.getString(KEY_PAIR_CODE, ""))
 
-        // 自动启动云音箱MVP服务
-        startService(Intent(this, SpeakerService::class.java))
+        // 自动启动云音箱MVP前台服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(Intent(this, SpeakerService::class.java))
+        } else {
+            startService(Intent(this, SpeakerService::class.java))
+        }
 
         // 开始监听
         btnStart.setOnClickListener {

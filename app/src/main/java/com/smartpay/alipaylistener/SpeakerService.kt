@@ -22,7 +22,22 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
 
     override fun onCreate() {
         super.onCreate()
+        // 变成前台服务，避免被系统杀死
+        val channelId = "speaker_service_channel"
+        val channel = android.app.NotificationChannel(
+            channelId,
+            "云音箱服务",
+            android.app.NotificationManager.IMPORTANCE_LOW
+        )
+        getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(channelId)
+        val notification = android.app.NotificationCompat.Builder(this, channelId)
+            .setContentTitle("云音箱秒播服务运行中")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .build()
+        startForeground(1002, notification)
+
         tts = TextToSpeech(this, this)
+        LogManager.addLog("Speaker服务", "Service已启动")
         initMqtt()
         loadHistoryPlayedIds()
     }
