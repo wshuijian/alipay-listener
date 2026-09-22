@@ -69,11 +69,8 @@ class AlipayNotificationListener : NotificationListenerService() {
                 LogManager.addLog("通知过滤", "跳过${timeDiff/1000}秒前的历史通知: $sbn.packageName")
                 return
             }
-            // 通知更新(UPDATE)直接跳过，只处理新POST
-            if (!isNewPost) {
-                LogManager.addLog("通知过滤", "跳过通知更新事件，避免重复")
-                return
-            }
+            // 注意：微信收款通知是常驻同一条，每次新收款都是UPDATE事件，不能跳过UPDATE
+            // 只靠10秒时间过滤，重复播报由PC端去重逻辑处理
             processNotification(sbn)
         }
     }
