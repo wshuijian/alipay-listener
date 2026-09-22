@@ -1,46 +1,61 @@
 ﻿package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.HardwareBuffer
+import android.media.ImageReader
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 无障碍服务 - 被动接收事件流，直接读事件自带的文本，不主动遍历窗口
+ * 无障碍服务 - 验证自带截屏能力，保存截图看能不能抓到悬浮窗金额
  */
 class AlipayAccessibilityService : AccessibilityService() {
-    private val amountRegex = Regex("(\\d+(\\.\\d{1,2})?)\\s*元")
-    private var lastAmountTime = 0L
-    private var lastAmount = ""
+    private var lastTriggerTime = 0L
+    private val screenshotDir by lazy {
+        File(android.os.Environment.getExternalStorageDirectory(), "SmartPayScreenshots").apply { mkdirs() }
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         try {
             val pkg = event.packageName?.toString() ?: return
-            // 不做包名过滤，打印所有事件文本，特别是SystemUI的
-            event.text.forEach { text ->
-                val t = text.toString()
-                // 只打印包含关键词的文本，避免刷屏
-                if (t.contains("邮付") || t.contains("收款") || t.contains("元") || t.contains("¥")) {
-                    LogManager.addLog("无障碍事件文本", "[$pkg] $t")
-                }
-                // 匹配金额
-                val match = amountRegex.find(t)
-                if (match != null && (t.contains("收款") || t.contains("邮付"))) {
-                    val amount = match.groupValues[1]
-                    // 10秒内同金额不重复播报
-                    val now = System.currentTimeMillis()
-                    if (amount != lastAmount || now - lastAmountTime > 10000) {
-                        lastAmount = amount
-                        lastAmountTime = now
-                        LogManager.addLog("✅ 无障碍抓到金额", "¥$amount | 来源:$pkg")
-                        // 直接走现有MQTT推送
-                        MqttClientManager.sendPayment(amount = amount, rawText = "YOUFU|$t")
-                    }
+            // 只要收到邮付小助手相关的事件，就触发截屏验证
+            event.text.forEach { t ->
+                val text = t.toString()
+                if ((text.contains("邮付") || text.contains("收款到账通知")) && System.currentTimeMillis() - lastTriggerTime > 3000) {
+                    lastTriggerTime = System.currentTimeMillis()
+                    LogManager.addLog("无障碍截屏", "收到触发事件，开始截屏验证...")
+                    takeScreenshot()
                 }
             }
         } catch (e: Exception) {
-            LogManager.addLog("无障碍异常", e.message ?: "未知错误")
+            LogManager.addLog("无障碍截屏异常", e.message ?: "未知错误")
+        }
+    }
+
+    private fun takeScreenshot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            takeScreenshot(executor = { it.run() }, callback = { screenshot ->
+                try {
+                    val hardwareBuffer = screenshot.hardwareBuffer
+                    val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.colorSpace)
+                    hardwareBuffer.close()
+                    val timestamp = SimpleDateFormat("HHmmss", Locale.CHINA).format(Date())
+                    val file = File(screenshotDir, "youfu_$timestamp.png")
+                    FileOutputStream(file).use { out ->
+                        bitmap?.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    }
+                    LogManager.addLog("无障碍截屏", "截图已保存到: ${file.absolutePath}")
+                } catch (e: Exception) {
+                    LogManager.addLog("无障碍截屏失败", e.message ?: "未知错误")
+                }
+            })
         }
     }
 
