@@ -314,13 +314,32 @@ class AlipayNotificationListener : NotificationListenerService() {
 
 
             // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
-            if (packageName == WECHAT_PACKAGE && title != "微信收款助手") {
+            if (packageName == WECHAT_PACKAGE && title != "微信收款助手" && title != "") {
                 LogManager.addLog("其他微信通知", "标题=$title | 内容=$text | 展开内容=$bigText | ticker=${notification.tickerText}")
-                // 打印所有extras字段，定位金额位置
-                val extrasDump = extras?.keySet()?.joinToString("\n") { key ->
-                    "  $key = ${extras.get(key)}"
-                } ?: "无extras"
-                LogManager.addLog("其他微信通知", "完整字段:\n$extrasDump")
+                // 延迟2秒后重新读一次通知内容，微信公众号通知POST时金额还没加载，过2秒就有了
+                val notificationKey = sbn.key
+                Thread {
+                    try {
+                        Thread.sleep(2000)
+                        val activeNotifs = activeNotifications
+                        val realNotif = activeNotifs.find { it.key == notificationKey }
+                        if (realNotif != null) {
+                            val realExtras = realNotif.notification?.extras
+                            val realText = realExtras?.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
+                            val realBigText = realExtras?.getCharSequence(Notification.EXTRA_BIG_TEXT, "")?.toString() ?: ""
+                            val realTitle = realExtras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
+                            LogManager.addLog("其他微信通知延迟重读", "标题=$realTitle | 内容=$realText | 展开内容=$realBigText")
+                            // 重新用正则匹配
+                            val fullRealText = "$realTitle $realText $realBigText"
+                            val matcher = AGGREGATE_AMOUNT_PATTERN.matcher(fullRealText)
+                            if (matcher.find()) {
+                                val amount = matcher.group(1)
+                                LogManager.addLog("✅ 聚合收款延迟解析成功", "来源:$realTitle 金额:¥$amount")
+                                MqttClientManager.sendPayment(amount = amount, rawText = "AGGREGATE|$realTitle $realText $realBigText")
+                            }
+                        }
+                    } catch (e: Exception) {}
+                }.start()
             }
             if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
                 LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text | 展开内容=$bigText")
