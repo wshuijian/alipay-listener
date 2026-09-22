@@ -6,24 +6,19 @@ import android.os.IBinder
 import android.speech.tts.TextToSpeech
 import org.eclipse.paho.client.mqttv3.*
 import org.json.JSONObject
-import java.sql.DriverManager
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 云音箱秒播MVP服务 - 最小改动实现，不影响现有通知监听逻辑
+ * 云音箱秒播MVP服务 - 修复MQTT回调问题
  */
 class SpeakerService : Service(), TextToSpeech.OnInitListener {
     private lateinit var mqttClient: MqttClient
     private lateinit var tts: TextToSpeech
     private var ttsReady = false
     private val playedMessageIds = ConcurrentHashMap.newKeySet<String>()
-    private val db by lazy {
-        openOrCreateDatabase("speaker_transactions.db", MODE_PRIVATE, null).apply {
-            execSQL("CREATE TABLE IF NOT EXISTS transactions (messageId TEXT PRIMARY KEY, deviceId TEXT, amount REAL, paymentType TEXT, message TEXT, receivedAt TEXT, playedAt TEXT, status TEXT)")
-        }
-    }
+    private val DEVICE_ID = "TEST-001"
 
     override fun onCreate() {
         super.onCreate()
@@ -33,33 +28,52 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun loadHistoryPlayedIds() {
-        val cursor = db.rawQuery("SELECT messageId FROM transactions WHERE status='PLAYED'", null)
-        while (cursor.moveToNext()) {
-            playedMessageIds.add(cursor.getString(0))
-        }
-        cursor.close()
+        try {
+            val db = openOrCreateDatabase("speaker_transactions.db", MODE_PRIVATE, null)
+            db.execSQL("CREATE TABLE IF NOT EXISTS transactions (messageId TEXT PRIMARY KEY, deviceId TEXT, amount REAL, paymentType TEXT, message TEXT, receivedAt TEXT, playedAt TEXT, status TEXT)")
+            val cursor = db.rawQuery("SELECT messageId FROM transactions WHERE status='PLAYED'", null)
+            while (cursor.moveToNext()) {
+                playedMessageIds.add(cursor.getString(0))
+            }
+            cursor.close()
+            db.close()
+        } catch (e: Exception) {}
     }
 
     private fun initMqtt() {
-        try {
-            val deviceId = "TEST-001"
-            val broker = "tcp://broker.emqx.io:1883"
-            val clientId = "speaker_$deviceId"
-            mqttClient = MqttClient(broker, clientId, null)
-            val options = MqttConnectOptions()
-            options.isAutomaticReconnect = true
-            options.isCleanSession = true
-            mqttClient.connect(options)
+        Thread {
+            try {
+                val broker = "tcp://broker.emqx.io:1883"
+                val clientId = "speaker_$DEVICE_ID"
+                mqttClient = MqttClient(broker, clientId, null)
+                val options = MqttConnectOptions()
+                options.isAutomaticReconnect = true
+                options.isCleanSession = true
 
-            // 订阅下行主题：smartscreen/speaker/TEST-001/down
-            val downTopic = "smartscreen/speaker/$deviceId/down"
-            mqttClient.subscribe(downTopic) { topic, message ->
-                handleSpeakerMessage(String(message.payload))
+                // 标准MQTT回调，接收所有消息
+                mqttClient.setCallback(object : MqttCallbackExtended {
+                    override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                        val downTopic = "smartscreen/speaker/$DEVICE_ID/down"
+                        mqttClient.subscribe(downTopic, 1)
+                        LogManager.addLog("Speaker服务", "已连接MQTT，订阅主题: $downTopic")
+                    }
+
+                    override fun connectionLost(cause: Throwable?) {}
+
+                    override fun messageArrived(topic: String?, message: MqttMessage?) {
+                        if (message != null) {
+                            handleSpeakerMessage(String(message.payload))
+                        }
+                    }
+
+                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
+                })
+
+                mqttClient.connect(options)
+            } catch (e: Exception) {
+                LogManager.addLog("Speaker服务异常", e.message ?: "MQTT连接失败")
             }
-            LogManager.addLog("Speaker服务", "已连接MQTT，订阅主题: $downTopic")
-        } catch (e: Exception) {
-            LogManager.addLog("Speaker服务异常", e.message ?: "MQTT连接失败")
-        }
+        }.start()
     }
 
     private fun handleSpeakerMessage(payload: String) {
@@ -81,8 +95,13 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
             }
 
             // 保存交易记录
-            db.execSQL("INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)",
-                arrayOf(messageId, deviceId, amount, paymentType, message, now, "", "RECEIVED"))
+            try {
+                val db = openOrCreateDatabase("speaker_transactions.db", MODE_PRIVATE, null)
+                db.execSQL("CREATE TABLE IF NOT EXISTS transactions (messageId TEXT PRIMARY KEY, deviceId TEXT, amount REAL, paymentType TEXT, message TEXT, receivedAt TEXT, playedAt TEXT, status TEXT)")
+                db.execSQL("INSERT OR REPLACE INTO transactions VALUES (?,?,?,?,?,?,?,?)",
+                    arrayOf(messageId, deviceId, amount, paymentType, message, now, "", "RECEIVED"))
+                db.close()
+            } catch (e: Exception) {}
 
             // TTS播报
             playedMessageIds.add(messageId)
@@ -90,8 +109,12 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
                 LogManager.addLog("TTS_STARTED", "开始播报: $message")
                 tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, messageId)
                 LogManager.addLog("TTS_FINISHED", "播报完成: $message")
-                db.execSQL("UPDATE transactions SET playedAt=?, status=? WHERE messageId=?",
-                    arrayOf(now, "PLAYED", messageId))
+                try {
+                    val db = openOrCreateDatabase("speaker_transactions.db", MODE_PRIVATE, null)
+                    db.execSQL("UPDATE transactions SET playedAt=?, status=? WHERE messageId=?",
+                        arrayOf(now, "PLAYED", messageId))
+                    db.close()
+                } catch (e: Exception) {}
             }
 
             sendAck(messageId, "PLAYED")
@@ -102,7 +125,7 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
 
     private fun sendAck(messageId: String, status: String) {
         try {
-            val upTopic = "smartscreen/speaker/TEST-001/up"
+            val upTopic = "smartscreen/speaker/$DEVICE_ID/up"
             val ackPayload = JSONObject().apply {
                 put("messageId", messageId)
                 put("status", status)
@@ -131,6 +154,6 @@ class SpeakerService : Service(), TextToSpeech.OnInitListener {
         super.onDestroy()
         tts.stop()
         tts.shutdown()
-        mqttClient.disconnect()
+        try { mqttClient.disconnect() } catch (e: Exception) {}
     }
 }
