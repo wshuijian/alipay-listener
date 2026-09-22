@@ -318,32 +318,7 @@ class AlipayNotificationListener : NotificationListenerService() {
             processedKeys.add(eventKey)
             if (processedKeys.size > 100) processedKeys.clear()
 
-            // 纯诊断：针对邮付小助手，打印所有事件，包括RemoteViews里的文本，放在最前面保证一定执行
-            if (packageName == WECHAT_PACKAGE && title == "邮付小助手") {
-                LogManager.addLog("邮付诊断", "收到事件 | key=${sbn.key} | postTime=${formatTime(sbn.postTime)}")
-                LogManager.addLog("邮付诊断", "  title=$title")
-                LogManager.addLog("邮付诊断", "  text=$text")
-                LogManager.addLog("邮付诊断", "  bigText=$bigText")
-                LogManager.addLog("邮付诊断", "  ticker=${notification.tickerText}")
-                
-                // 尝试inflate通知的RemoteViews，遍历里面所有TextView读文字
-                try {
-                    LogManager.addLog("邮付诊断", "contentView是否为null: ${notification.contentView == null}")
-                    LogManager.addLog("邮付诊断", "bigContentView是否为null: ${notification.bigContentView == null}")
-                    // 先试contentView，再试bigContentView
-                    val remoteViews = notification.contentView ?: notification.bigContentView
-                    if (remoteViews != null) {
-                        val tempView = remoteViews.apply(this@AlipayNotificationListener, null)
-                        val rvTexts = mutableListOf<String>()
-                        traverseView(tempView, rvTexts, 0)
-                        LogManager.addLog("邮付诊断", "RemoteViews里的文本: ${rvTexts.joinToString(" / ")}")
-                    } else {
-                        LogManager.addLog("邮付诊断", "两个RemoteViews都是null")
-                    }
-                } catch (e: Exception) {
-                    LogManager.addLog("邮付诊断", "RemoteViews读取失败: ${e.message}")
-                }
-            }
+
 
 
 
