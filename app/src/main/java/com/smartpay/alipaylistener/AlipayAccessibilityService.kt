@@ -30,8 +30,10 @@ class AlipayAccessibilityService : AccessibilityService() {
                 val text = t.toString()
                 if ((text.contains("邮付") || text.contains("收款到账通知")) && System.currentTimeMillis() - lastTriggerTime > 3000) {
                     lastTriggerTime = System.currentTimeMillis()
-                    LogManager.addLog("无障碍截屏", "收到触发事件，开始截屏验证...")
-                    takeScreenshot()
+                    LogManager.addLog("无障碍截屏", "收到触发事件，延迟500ms等悬浮窗弹出后截屏...")
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        takeScreenshot()
+                    }, 500)
                 }
             }
         } catch (e: Exception) {
