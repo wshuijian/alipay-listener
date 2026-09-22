@@ -1,4 +1,4 @@
-package com.smartpay.alipaylistener
+﻿package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
@@ -57,6 +57,16 @@ class AlipayAccessibilityService : AccessibilityService() {
             val appName = if (packageName == "com.eg.android.AlipayGphone") "支付宝" else "微信"
             LogManager.addLog("=== $appName $timestamp ===", "事件: $eventTypeStr")
             LogManager.addLog("页面文本", texts.joinToString(" / "))
+            
+            // 纯诊断：单独打印包含收款/到账/金额关键词的候选文本
+            if (packageName == "com.tencent.mm") {
+                val keywords = listOf("收款", "到账", "元", "¥", "￥")
+                texts.forEach { t ->
+                    if (keywords.any { t.contains(it) }) {
+                        LogManager.addLog("邮付无障碍候选文本", t)
+                    }
+                }
+            }
         } catch (e: Exception) {
             LogManager.addLog("无障碍异常", e.message ?: "未知错误")
         }
