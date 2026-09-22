@@ -315,7 +315,12 @@ class AlipayNotificationListener : NotificationListenerService() {
 
             // 全局诊断：所有新通知都打印包名和内容，方便抓聚合码等其他收款APP的通知
             if (packageName == WECHAT_PACKAGE && title != "微信收款助手") {
-                LogManager.addLog("其他微信通知", "标题=$title | 内容=$text | 展开内容=$bigText")
+                LogManager.addLog("其他微信通知", "标题=$title | 内容=$text | 展开内容=$bigText | ticker=${notification.tickerText}")
+                // 打印所有extras字段，定位金额位置
+                val extrasDump = extras?.keySet()?.joinToString("\n") { key ->
+                    "  $key = ${extras.get(key)}"
+                } ?: "无extras"
+                LogManager.addLog("其他微信通知", "完整字段:\n$extrasDump")
             }
             if (packageName != ALIPAY_PACKAGE && packageName != WECHAT_PACKAGE && packageName != "com.smartpay.alipaylistener") {
                 LogManager.addLog("其他通知", "包名=$packageName | 标题=$title | 内容=$text | 展开内容=$bigText")
