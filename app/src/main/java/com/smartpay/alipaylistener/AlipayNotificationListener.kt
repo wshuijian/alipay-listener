@@ -115,11 +115,9 @@ class AlipayNotificationListener : NotificationListenerService() {
         LogManager.addLog("通知$event", summary)
         Log.i(TAG, "onNotificationPosted ($event)\n$summary")
 
-        // 支付宝的所有通知都打印完整extras，不管是POST还是UPDATE
+        // 跑通后关闭冗长的extras字段打印，只保留关键日志
         if (sbn.packageName == ALIPAY_PACKAGE) {
-            LogManager.addLog("支付宝${event}", "收到支付宝${event}通知，输出完整 extras")
-            Log.i(TAG, "Alipay ${event} notification, dumping extras")
-            dumpExtras(extras, "支付宝${event} extras")
+            LogManager.addLog("支付宝${event}", "收到支付宝${event}通知")
         }
     }
 
