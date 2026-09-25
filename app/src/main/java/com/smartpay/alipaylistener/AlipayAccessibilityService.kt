@@ -22,17 +22,29 @@ class AlipayAccessibilityService : AccessibilityService() {
 
     fun dumpCurrentWindow() {
         try {
-            val root = rootInActiveWindow
-            if (root == null) {
-                LogManager.addLog("手动dump", "root窗口为null")
-                return
+            LogManager.addLog("手动dump", "===== 开始枚举所有窗口 =====")
+            val windows = windows
+            LogManager.addLog("手动dump", "当前共 ${windows.size} 个窗口")
+            for (i in windows.indices) {
+                val win = windows[i]
+                val pkg = win.root?.packageName?.toString() ?: "未知"
+                LogManager.addLog("手动dump", "窗口#$i: 包名=$pkg 是否活动=${win.isActive}")
+                val sb = StringBuilder()
+                traverseNode(win.root, sb, 1)
+                if (sb.isNotEmpty()) {
+                    LogManager.addLog("手动dump", "窗口#$i 内容:\n$sb")
+                }
             }
-            val pkg = root.packageName?.toString() ?: ""
-            LogManager.addLog("手动dump", "===== 开始读取当前屏幕 (包名:$pkg) =====")
-            val sb = StringBuilder()
-            traverseNode(root, sb, 0)
-            LogManager.addLog("手动dump", "所有文字:\n$sb")
-            LogManager.addLog("手动dump", "===== 读取结束 =====")
+            val root = rootInActiveWindow
+            if (root != null) {
+                LogManager.addLog("手动dump", "活动主窗口包名: ${root.packageName}")
+                val sb = StringBuilder()
+                traverseNode(root, sb, 1)
+                LogManager.addLog("手动dump", "活动主窗口内容:\n$sb")
+            } else {
+                LogManager.addLog("手动dump", "活动主窗口root为null")
+            }
+            LogManager.addLog("手动dump", "===== 枚举结束 =====")
         } catch (e: Exception) {
             LogManager.addLog("手动dump失败", e.message ?: "未知错误")
         }
