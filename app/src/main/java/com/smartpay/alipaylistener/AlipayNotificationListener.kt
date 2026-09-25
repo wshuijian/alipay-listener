@@ -90,6 +90,52 @@ class AlipayNotificationListener : NotificationListenerService() {
         val summary = buildNotificationSummary(sbn, event)
         LogManager.addLog("通知$event", summary)
 
+        // ===== 邮付小助手全字段深度dump =====
+        if (sbn.packageName == WECHAT_PACKAGE) {
+            val title = extras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
+            if (title.contains("邮付小助手")) {
+                LogManager.addLog("邮付深度dump", "===== 开始深度dump邮付通知 =====")
+                extras?.keySet()?.forEach { k ->
+                    val v = when(val value = extras.get(k)) {
+                        null -> "null"
+                        is CharSequence -> value.toString()
+                        is Array<*> -> value.contentToString()
+                        else -> value.javaClass.simpleName + "=" + value.toString().take(100)
+                    }
+                    LogManager.addLog("邮付深度dump", "extras[$k] = $v")
+                }
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        val style = Notification.MessagingStyle.extractMessagingStyleFromNotification(notification)
+                        if (style != null) {
+                            LogManager.addLog("邮付深度dump", "MessagingStyle存在，共${style.messages.size}条消息:")
+                            style.messages.forEachIndexed { i, m ->
+                                LogManager.addLog("邮付深度dump", "  消息$i: 内容=${m.text}")
+                            }
+                        } else {
+                            LogManager.addLog("邮付深度dump", "无MessagingStyle")
+                        }
+                    }
+                } catch (e: Exception) {
+                    LogManager.addLog("邮付深度dump", "MessagingStyle解析失败: ${e.message}")
+                }
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val pub = notification?.publicVersion
+                        if (pub != null) {
+                            LogManager.addLog("邮付深度dump", "publicVersion: title=${pub.extras.getCharSequence(Notification.EXTRA_TITLE)} bigText=${pub.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)}")
+                        } else {
+                            LogManager.addLog("邮付深度dump", "无publicVersion")
+                        }
+                    }
+                } catch (e: Exception) {
+                    LogManager.addLog("邮付深度dump", "publicVersion解析失败: ${e.message}")
+                }
+                LogManager.addLog("邮付深度dump", "===== 深度dump结束 =====")
+            }
+        }
+        // ===== 深度dump结束 =====
+
         if (sbn.packageName == ALIPAY_PACKAGE) {
             LogManager.addLog("支付宝${event}", "收到支付宝${event}通知")
         }
