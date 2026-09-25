@@ -104,21 +104,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     }
                     LogManager.addLog("邮付深度dump", "extras[$k] = $v")
                 }
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        val style = Notification.MessagingStyle.extractMessagingStyleFromNotification(notification)
-                        if (style != null) {
-                            LogManager.addLog("邮付深度dump", "MessagingStyle存在，共${style.messages.size}条消息:")
-                            style.messages.forEachIndexed { i, m ->
-                                LogManager.addLog("邮付深度dump", "  消息$i: 内容=${m.text}")
-                            }
-                        } else {
-                            LogManager.addLog("邮付深度dump", "无MessagingStyle")
-                        }
-                    }
-                } catch (e: Exception) {
-                    LogManager.addLog("邮付深度dump", "MessagingStyle解析失败: ${e.message}")
-                }
+                LogManager.addLog("邮付深度dump", "跳过MessagingStyle检查，避免编译错误")
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         val pub = notification?.publicVersion
