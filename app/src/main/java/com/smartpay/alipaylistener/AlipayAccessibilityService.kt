@@ -1,71 +1,66 @@
 ﻿package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
-import android.graphics.Bitmap
-import android.graphics.PixelFormat
-import android.hardware.HardwareBuffer
-import android.media.ImageReader
-import android.os.Build
 import android.view.accessibility.AccessibilityEvent
-import java.io.File
-import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.*
+import android.view.accessibility.AccessibilityNodeInfo
 
-/**
- * 无障碍服务 - 验证自带截屏能力，保存截图看能不能抓到悬浮窗金额
- */
 class AlipayAccessibilityService : AccessibilityService() {
-    private var lastTriggerTime = 0L
-    private val screenshotDir by lazy {
-        File(getExternalFilesDir(null), "screenshots").apply { mkdirs() }
+    companion object {
+        @Volatile
+        private var dumpMode = false
+        fun startDumpMode() {
+            dumpMode = true
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event == null || !dumpMode) return
         try {
             val pkg = event.packageName?.toString() ?: return
-            // 只要收到邮付小助手相关的事件，就触发截屏验证
-            event.text.forEach { t ->
-                val text = t.toString()
-                if ((text.contains("邮付") || text.contains("收款到账通知")) && System.currentTimeMillis() - lastTriggerTime > 3000) {
-                    lastTriggerTime = System.currentTimeMillis()
-                    LogManager.addLog("无障碍截屏", "收到触发事件，延迟500ms等悬浮窗弹出后截屏...")
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        takeScreenshot()
-                    }, 500)
-                }
+            if (pkg != "com.tencent.mm") return
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    dumpCurrentWindow()
+                }, 500)
             }
         } catch (e: Exception) {
-            LogManager.addLog("无障碍截屏异常", e.message ?: "未知错误")
+            LogManager.addLog("无障碍dump异常", e.message ?: "未知错误")
         }
     }
 
-    private fun takeScreenshot() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val executor = java.util.concurrent.Executor { it.run() }
-            val callback = object : TakeScreenshotCallback {
-                override fun onSuccess(screenshot: ScreenshotResult) {
-                    try {
-                        val hardwareBuffer = screenshot.hardwareBuffer
-                        val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.colorSpace)
-                        hardwareBuffer.close()
-                        val timestamp = SimpleDateFormat("HHmmss", Locale.CHINA).format(Date())
-                        val file = File(screenshotDir, "youfu_$timestamp.png")
-                        FileOutputStream(file).use { out ->
-                            bitmap?.compress(Bitmap.CompressFormat.PNG, 100, out)
-                        }
-                        LogManager.addLog("无障碍截屏", "截图已保存到: ${file.absolutePath}")
-                    } catch (e: Exception) {
-                        LogManager.addLog("无障碍截屏失败", e.message ?: "未知错误")
-                    }
-                }
-                override fun onFailure(errorCode: Int) {
-                    LogManager.addLog("无障碍截屏失败", "错误码: $errorCode")
-                }
+    private fun dumpCurrentWindow() {
+        if (!dumpMode) return
+        try {
+            val root = rootInActiveWindow ?: run {
+                LogManager.addLog("无障碍dump", "root window 为 null")
+                return
             }
-            takeScreenshot(0, executor, callback)
+            LogManager.addLog("无障碍dump", "===== 开始dump当前微信页面 =====")
+            val sb = StringBuilder()
+            traverseNode(root, sb, 0)
+            LogManager.addLog("无障碍dump", "页面所有文本:\n$sb")
+            LogManager.addLog("无障碍dump", "===== dump结束 =====")
+            dumpMode = false
+        } catch (e: Exception) {
+            LogManager.addLog("无障碍dump失败", e.message ?: "未知错误")
+            dumpMode = false
         }
+    }
+
+    private fun traverseNode(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
+        if (node == null || depth > 15) return
+        try {
+            val text = node.text?.toString()?.trim() ?: ""
+            val desc = node.contentDescription?.toString()?.trim() ?: ""
+            val cls = node.className?.toString() ?: ""
+            if (text.isNotEmpty() || desc.isNotEmpty()) {
+                sb.appendLine("  ".repeat(depth) + "[$cls] text='$text' desc='$desc'")
+            }
+            for (i in 0 until node.childCount) {
+                traverseNode(node.getChild(i), sb, depth + 1)
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onInterrupt() {}
