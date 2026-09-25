@@ -49,27 +49,6 @@ class AlipayNotificationListener : NotificationListenerService() {
 
         logNotificationPosted(sbn)
 
-        // ===== 第一步最小验证：收到邮付小助手通知时，自动执行点击动作 =====
-        if (sbn.packageName == WECHAT_PACKAGE && timeDiff < 10000) {
-            val title = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
-            if (title.contains("邮付小助手") || title.contains("收款到账通知")) {
-                LogManager.addLog("邮付验证", "收到邮付通知($event)，准备自动点击")
-                try {
-                    val pi = sbn.notification.contentIntent
-                    if (pi != null) {
-                        pi.send()
-                        LogManager.addLog("邮付验证", "已自动执行通知点击动作，等待无障碍dump页面内容")
-                        AlipayAccessibilityService.startDumpMode()
-                    } else {
-                        LogManager.addLog("邮付验证", "通知没有contentIntent，无法自动点击")
-                    }
-                } catch (e: Exception) {
-                    LogManager.addLog("邮付验证", "自动点击失败: ${e.message}")
-                }
-            }
-        }
-        // ===== 自动点击逻辑结束 =====
-
         if (!DIAGNOSTICS_ONLY) {
             if (timeDiff > 10000) return
             processNotification(sbn)
