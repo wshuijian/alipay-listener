@@ -172,6 +172,27 @@ object MqttClientManager {
         }
     }
 
+    fun sendWeipayTrigger() {
+        log("发送邮付拉单触发消息到PC")
+        if (!isConnected || !isPaired || mqttClient == null) {
+            log("❌ MQTT未连接，丢弃触发消息")
+            return
+        }
+        try {
+            val triggerTopic = "smartscreen/payment/trigger"
+            val json = JSONObject().apply {
+                put("source", "wepay_postpay")
+                put("time", System.currentTimeMillis())
+                put("device_id", deviceId)
+            }
+            val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
+            mqttClient?.publish(triggerTopic, message)
+            log("✅ 邮付拉单触发已发送")
+        } catch (e: Exception) {
+            log("❌ 发送触发失败: ${e.message}")
+        }
+    }
+
     fun disconnect() {
         try {
             mqttClient?.disconnect()

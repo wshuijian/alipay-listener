@@ -203,6 +203,12 @@ class AlipayNotificationListener : NotificationListenerService() {
                     MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title")
                 }
                 WECHAT_PACKAGE -> {
+                    // 检测到邮付小助手收款通知，发送PC端拉单触发，不解析金额
+                    if (title == "邮付小助手" && text.contains("收款到账通知")) {
+                        LogManager.addLog("🔔 邮付触发", "检测到邮付收款通知，发送拉单触发到PC")
+                        MqttClientManager.sendWeipayTrigger()
+                        return
+                    }
                     val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
