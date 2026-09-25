@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var btnStop: Button
     private lateinit var btnOpenNotificationAccess: Button
     private lateinit var btnTestNotify: Button
+    private lateinit var btnDumpNow: Button
     private lateinit var btnCopyLog: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
@@ -41,6 +42,7 @@ class MainActivity : Activity() {
         btnStop = findViewById(R.id.btn_stop)
         btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
         btnTestNotify = findViewById(R.id.btn_test_notify)
+        btnDumpNow = findViewById(R.id.btn_dump_now)
         btnCopyLog = findViewById(R.id.btn_copy_log)
         tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
@@ -96,6 +98,14 @@ class MainActivity : Activity() {
         btnTestNotify.setOnClickListener {
             sendTestNotification()
             Toast.makeText(this, "已发送测试通知", Toast.LENGTH_SHORT).show()
+        }
+
+        // 手动dump当前屏幕按钮
+        btnDumpNow.setOnClickListener {
+            Toast.makeText(this, "3秒后自动读取，请立刻切到微信服务通知页面", Toast.LENGTH_LONG).show()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                AlipayAccessibilityService.manualDumpNow()
+            }, 3000)
         }
 
         // 复制日志按钮

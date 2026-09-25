@@ -6,43 +6,40 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 class AlipayAccessibilityService : AccessibilityService() {
     companion object {
-        @Volatile
-        private var dumpMode = false
-        fun startDumpMode() {
-            dumpMode = true
-            // 连续dump3次，确保微信页面加载完
-            for (delay in longArrayOf(1000, 2000, 3000)) {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    dumpCurrentWindow()
-                }, delay)
-            }
+        private var instance: AlipayAccessibilityService? = null
+        fun manualDumpNow() {
+            instance?.dumpCurrentWindow()
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || !dumpMode) return
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
     }
 
-    private fun dumpCurrentWindow() {
-        if (!dumpMode) return
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+    }
+
+    fun dumpCurrentWindow() {
         try {
-            val root = rootInActiveWindow ?: run {
-                LogManager.addLog("无障碍dump", "root window 为 null")
+            val root = rootInActiveWindow
+            if (root == null) {
+                LogManager.addLog("手动dump", "root窗口为null")
                 return
             }
             val pkg = root.packageName?.toString() ?: ""
-            LogManager.addLog("无障碍dump", "===== dump页面 (包名:$pkg) =====")
+            LogManager.addLog("手动dump", "===== 开始读取当前屏幕 (包名:$pkg) =====")
             val sb = StringBuilder()
             traverseNode(root, sb, 0)
-            LogManager.addLog("无障碍dump", "页面所有文本:\n$sb")
-            LogManager.addLog("无障碍dump", "===== dump结束 =====")
+            LogManager.addLog("手动dump", "所有文字:\n$sb")
+            LogManager.addLog("手动dump", "===== 读取结束 =====")
         } catch (e: Exception) {
-            LogManager.addLog("无障碍dump失败", e.message ?: "未知错误")
+            LogManager.addLog("手动dump失败", e.message ?: "未知错误")
         }
     }
 
     private fun traverseNode(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
-        if (node == null || depth > 20) return
+        if (node == null || depth > 25) return
         try {
             val text = node.text?.toString()?.trim() ?: ""
             val desc = node.contentDescription?.toString()?.trim() ?: ""
