@@ -49,11 +49,11 @@ class AlipayNotificationListener : NotificationListenerService() {
 
         logNotificationPosted(sbn)
 
-        // ===== 第一步最小验证：收到邮付小助手新通知时，自动执行点击动作 =====
-        if (sbn.packageName == WECHAT_PACKAGE && isNewPost && timeDiff < 10000) {
+        // ===== 第一步最小验证：收到邮付小助手通知时，自动执行点击动作 =====
+        if (sbn.packageName == WECHAT_PACKAGE && timeDiff < 10000) {
             val title = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
-            if (title.contains("邮付小助手")) {
-                LogManager.addLog("邮付验证", "收到邮付新通知，准备自动点击")
+            if (title.contains("邮付小助手") || title.contains("收款到账通知")) {
+                LogManager.addLog("邮付验证", "收到邮付通知($event)，准备自动点击")
                 try {
                     val pi = sbn.notification.contentIntent
                     if (pi != null) {
