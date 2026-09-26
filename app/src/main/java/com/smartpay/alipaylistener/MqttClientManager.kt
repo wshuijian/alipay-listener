@@ -74,13 +74,19 @@ object MqttClientManager {
             mqttClient?.setCallback(object : MqttCallbackExtended {
                 override fun connectComplete(reconnect: Boolean, serverURI: String?) {
                     isConnected = true
-                    log("✅ MQTT连接成功，已连接到服务器: $serverURI")
+                    log("✅ MQTT连接成功，已连接到服务器: $serverURI, 是否重连=$reconnect")
                     statusCallback?.invoke("connected", "连接成功")
-                    // 连接真正建立后再订阅和发配对
+                    // 连接后订阅配对响应主题
                     val responseTopic = "${TOPIC_PREFIX}pair_response/$deviceId"
                     mqttClient?.subscribe(responseTopic)
                     log("已订阅: $responseTopic")
-                    sendPairRequest()
+                    // 只有首次连接（之前没配对过）才发配对请求，断线重连不重新配对
+                    if (!isPaired) {
+                        log("🔍 首次连接，发送配对请求")
+                        sendPairRequest()
+                    } else {
+                        log("🔍 断线重连成功，已经配对过，跳过重复发配对请求")
+                    }
                 }
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
@@ -226,6 +232,7 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
 
