@@ -206,7 +206,12 @@ class AlipayNotificationListener : NotificationListenerService() {
                     // 检测到邮付小助手收款通知，发送PC端拉单触发，不解析金额
                     if (title == "邮付小助手" && text.contains("收款到账通知")) {
                         LogManager.addLog("🔔 邮付触发", "检测到邮付收款通知，发送拉单触发到PC")
-                        MqttClientManager.sendWeipayTrigger()
+                        MqttClientManager.sendWeipayTrigger(appName = "邮付小助手")
+                        return
+                    }
+                    if (title == "安徽农金云收单" && text.contains("收款到账通知")) {
+                        LogManager.addLog("🔔 农金触发", "检测到安徽农金收款通知，发送拉单触发到PC")
+                        MqttClientManager.sendWeipayTrigger(appName = "安徽农金")
                         return
                     }
                     val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
@@ -221,4 +226,5 @@ class AlipayNotificationListener : NotificationListenerService() {
         }
     }
 }
+
 

@@ -173,8 +173,8 @@ object MqttClientManager {
         }
     }
 
-    fun sendWeipayTrigger() {
-        log("发送邮付拉单触发消息到PC")
+    fun sendWeipayTrigger(appName: String = "邮付小助手") {
+        log("发送银行卡拉单触发消息到PC: $appName")
         if (!isConnected || !isPaired || mqttClient == null) {
             log("❌ MQTT未连接，丢弃触发消息")
             return
@@ -182,7 +182,8 @@ object MqttClientManager {
         try {
             val triggerTopic = "smartscreen/payment/trigger"
             val json = JSONObject().apply {
-                put("source", "wepay_postpay")
+                put("source", "bank_trigger")
+                put("app_name", appName)
                 put("time", System.currentTimeMillis())
                 put("device_id", deviceId)
             }
@@ -211,4 +212,5 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
