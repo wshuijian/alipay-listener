@@ -1,4 +1,4 @@
-package com.smartpay.alipaylistener
+﻿package com.smartpay.alipaylistener
 
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
@@ -143,8 +143,8 @@ object MqttClientManager {
         }
     }
 
-    fun sendPayment(amount: String, rawText: String) {
-        log("收到收款通知准备发送: 金额=$amount, 原始内容=${rawText.take(50)}")
+    fun sendPayment(amount: String, rawText: String, appName: String = "", source: String = "ALIPAY") {
+        log("收到收款通知准备发送: 金额=$amount, 原始内容=${rawText.take(50)}, 公众号=$appName")
         log("MQTT状态: isConnected=$isConnected, isPaired=$isPaired, client是否为空=${mqttClient == null}")
         if (!isConnected || !isPaired || mqttClient == null) {
             log("❌ 未连接或未配对，丢弃这笔收款通知: ¥$amount")
@@ -157,10 +157,11 @@ object MqttClientManager {
             val json = JSONObject().apply {
                 put("event_id", eventId)
                 put("device_id", deviceId)
-                put("source", "ALIPAY")
+                put("source", source)
                 put("amount", amount)
                 put("received_at", System.currentTimeMillis())
                 put("raw_text", rawText)
+                put("app_name", appName)
             }
             log("准备发布MQTT: topic=$paymentTopic, 金额=$amount, eventId=$eventId")
             val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
@@ -210,3 +211,4 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
