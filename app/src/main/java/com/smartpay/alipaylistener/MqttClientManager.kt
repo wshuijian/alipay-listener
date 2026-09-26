@@ -34,6 +34,13 @@ object MqttClientManager {
     fun isPaired(): Boolean = isPaired
 
     fun connect(pairCode: String) {
+        log("🔍 定位: connect() 被调用, 时间=${System.currentTimeMillis()}, pairCode=$pairCode, 当前状态 isConnected=$isConnected, isPaired=$isPaired")
+        // 打印调用来源栈，定位是谁调的connect
+        try {
+            throw Exception("调用来源栈")
+        } catch (e: Exception) {
+            log("🔍 定位: connect() 调用栈: ${e.stackTraceToString().take(500)}")
+        }
         // 防止重复初始化：已经连接且配对成功就直接返回，不重复新建MQTT实例
         if (isConnected && isPaired && mqttClient != null) {
             log("⚠️ 已经处于连接配对状态，跳过重复connect调用")
@@ -134,6 +141,7 @@ object MqttClientManager {
     }
 
     private fun sendPairRequest() {
+        log("🔍 定位: sendPairRequest() 被调用, 时间=${System.currentTimeMillis()}")
         try {
             val pairTopic = "${TOPIC_PREFIX}pair/$pairCode"
             val json = JSONObject().apply {
@@ -218,6 +226,7 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
 

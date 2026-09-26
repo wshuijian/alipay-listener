@@ -1,4 +1,4 @@
-package com.smartpay.alipaylistener
+﻿package com.smartpay.alipaylistener
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -65,3 +65,4 @@ class KeepAliveService : Service() {
             .build()
     }
 }
+
