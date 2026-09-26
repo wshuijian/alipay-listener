@@ -59,7 +59,17 @@ object MqttClientManager {
                 isAutomaticReconnect = false  // 关闭自动重连，只用手动重连，避免冲突
             }
 
-            mqttClient?.setCallback(object : MqttCallback {
+            mqttClient?.setCallback(object : MqttCallbackExtended {
+                override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+                    isConnected = true
+                    log("✅ MQTT连接成功，已连接到服务器: $serverURI")
+                    statusCallback?.invoke("connected", "连接成功")
+                    // 连接真正建立后再订阅和发配对
+                    val responseTopic = "${TOPIC_PREFIX}pair_response/$deviceId"
+                    mqttClient?.subscribe(responseTopic)
+                    log("已订阅: $responseTopic")
+                    sendPairRequest()
+                }
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
                     isPaired = false
@@ -91,18 +101,9 @@ object MqttClientManager {
             })
 
             mqttClient?.connect(options)
-            isConnected = true
             isReconnecting = false
-            log("✅ MQTT连接成功")
-            statusCallback?.invoke("connected", "连接成功")
-
-            // 订阅配对响应主题
-            val responseTopic = "${TOPIC_PREFIX}pair_response/$deviceId"
-            mqttClient?.subscribe(responseTopic)
-            log("已订阅: $responseTopic")
-
-            // 发送配对请求
-            sendPairRequest()
+            log("正在连接MQTT服务器，等待连接建立...")
+            // 连接真正建立后，在MqttCallback的connectComplete回调里再订阅和发配对请求
 
         } catch (e: Exception) {
             log("❌ MQTT连接异常: ${e.message}")
@@ -212,5 +213,6 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
