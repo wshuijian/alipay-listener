@@ -76,22 +76,25 @@ object MqttClientManager {
                     isConnected = true
                     log("✅ MQTT连接成功，已连接到服务器: $serverURI, 是否重连=$reconnect")
                     statusCallback?.invoke("connected", "连接成功")
-                    // 连接后订阅配对响应主题
+                    // 订阅配对响应主题
                     val responseTopic = "${TOPIC_PREFIX}pair_response/$deviceId"
                     mqttClient?.subscribe(responseTopic)
-                    log("已订阅: $responseTopic")
-                    // 只有首次连接（之前没配对过）才发配对请求，断线重连不重新配对
-                    if (!isPaired) {
+                    // 如果已经配对过，直接订阅收款主题，不发配对请求
+                    if (isPaired) {
+                        val paymentTopic = "${TOPIC_PREFIX}payment/$deviceId"
+                        mqttClient?.subscribe(paymentTopic)
+                        log("已订阅收款主题: $paymentTopic")
+                        log("🔍 断线重连成功，直接恢复订阅，跳过配对")
+                    } else {
+                        // 首次连接才发配对请求
                         log("🔍 首次连接，发送配对请求")
                         sendPairRequest()
-                    } else {
-                        log("🔍 断线重连成功，已经配对过，跳过重复发配对请求")
                     }
                 }
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
-                    isPaired = false
-                    log("连接断开: ${cause?.message}")
+                    // 断线保留已配对状态，重连不需要重新配对
+                    log("连接断开: ${cause?.message}, 保留已配对状态 isPaired=$isPaired")
                     statusCallback?.invoke("disconnected", "连接断开")
                     // 5秒后重连（用同一个deviceId）
                     scheduleReconnect()
@@ -232,6 +235,7 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
 
