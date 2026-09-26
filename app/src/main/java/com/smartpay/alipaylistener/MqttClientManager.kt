@@ -19,6 +19,7 @@ object MqttClientManager {
     private var deviceId = ""  // 设备ID固定不变，重连也用同一个
     private var pairCode = ""
     private var isReconnecting = false  // 防止重复重连
+    private val pendingTriggerQueue = mutableListOf<String>()  // 断线时暂存银行卡触发消息，连接恢复后补发
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
 
@@ -90,6 +91,8 @@ object MqttClientManager {
                         log("🔍 首次连接，发送配对请求")
                         sendPairRequest()
                     }
+                    // 连接恢复后补发暂存的触发消息
+                    flushPendingTriggers()
                 }
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
@@ -199,7 +202,8 @@ object MqttClientManager {
     fun sendWeipayTrigger(appName: String = "邮付小助手") {
         log("发送银行卡拉单触发消息到PC: $appName")
         if (!isConnected || !isPaired || mqttClient == null) {
-            log("❌ MQTT未连接，丢弃触发消息")
+            log("⚠️ MQTT未连接，触发消息暂存本地队列，等待重连后补发")
+            pendingTriggerQueue.add(appName)
             return
         }
         try {
@@ -214,7 +218,33 @@ object MqttClientManager {
             mqttClient?.publish(triggerTopic, message)
             log("✅ 邮付拉单触发已发送")
         } catch (e: Exception) {
-            log("❌ 发送触发失败: ${e.message}")
+            log("❌ 发送触发失败: ${e.message}，消息转入待发送队列")
+            pendingTriggerQueue.add(appName)
+        }
+    }
+
+    private fun flushPendingTriggers() {
+        if (pendingTriggerQueue.isEmpty()) return
+        log("🔄 MQTT连接恢复，补发暂存的${pendingTriggerQueue.size}条银行卡触发消息")
+        val triggerTopic = "smartscreen/payment/trigger"
+        val iterator = pendingTriggerQueue.iterator()
+        while (iterator.hasNext()) {
+            val appName = iterator.next()
+            try {
+                val json = JSONObject().apply {
+                    put("source", "bank_trigger")
+                    put("app_name", appName)
+                    put("time", System.currentTimeMillis())
+                    put("device_id", deviceId)
+                }
+                val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
+                mqttClient?.publish(triggerTopic, message)
+                log("✅ 补发成功: $appName")
+                iterator.remove()
+            } catch (e: Exception) {
+                log("❌ 补发失败: $appName")
+                break
+            }
         }
     }
 
@@ -235,6 +265,7 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
 
