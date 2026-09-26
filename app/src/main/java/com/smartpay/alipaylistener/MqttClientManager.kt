@@ -34,6 +34,11 @@ object MqttClientManager {
     fun isPaired(): Boolean = isPaired
 
     fun connect(pairCode: String) {
+        // 防止重复初始化：已经连接且配对成功就直接返回，不重复新建MQTT实例
+        if (isConnected && isPaired && mqttClient != null) {
+            log("⚠️ 已经处于连接配对状态，跳过重复connect调用")
+            return
+        }
         this.pairCode = pairCode
         
         // 设备ID只生成一次，之后重连一直用同一个
@@ -213,6 +218,7 @@ object MqttClientManager {
         LogManager.addLog("MQTT", msg)
     }
 }
+
 
 
 
