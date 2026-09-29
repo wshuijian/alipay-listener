@@ -15,18 +15,24 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : Activity() {
 
     private lateinit var etPairCode: EditText
     private lateinit var btnStart: Button
-    private lateinit var btnStop: Button
     private lateinit var btnOpenNotificationAccess: Button
-    private lateinit var btnTestNotify: Button
-    private lateinit var btnDumpNow: Button
-    private lateinit var btnCopyLog: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
+    private lateinit var tvLatestAmount: TextView
+    private lateinit var tvLatestChannel: TextView
+    private lateinit var tvTodayTotal: TextView
+    private lateinit var tvTodayCount: TextView
+    private lateinit var tvStatusTop: TextView
+
+    private var todayTotal: Float = 0f
+    private var todayCount: Int = 0
 
     private val PREFS_NAME = "alipay_listener_prefs"
     private val KEY_PAIR_CODE = "pair_code"
@@ -39,13 +45,14 @@ class MainActivity : Activity() {
 
         etPairCode = findViewById(R.id.et_pair_code)
         btnStart = findViewById(R.id.btn_start)
-        btnStop = findViewById(R.id.btn_stop)
         btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
-        btnTestNotify = findViewById(R.id.btn_test_notify)
-        btnDumpNow = findViewById(R.id.btn_dump_now)
-        btnCopyLog = findViewById(R.id.btn_copy_log)
         tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
+        tvLatestAmount = findViewById(R.id.tv_latest_amount)
+        tvLatestChannel = findViewById(R.id.tv_latest_channel)
+        tvTodayTotal = findViewById(R.id.tv_today_total)
+        tvTodayCount = findViewById(R.id.tv_today_count)
+        tvStatusTop = findViewById(R.id.tv_status_top)
 
         // 加载保存的配对码
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -81,39 +88,9 @@ class MainActivity : Activity() {
             updateStatus()
         }
 
-        // 停止监听
-        btnStop.setOnClickListener {
-            stopService(Intent(this, KeepAliveService::class.java))
-            MqttClientManager.disconnect()
-            Toast.makeText(this, "监听服务已停止", Toast.LENGTH_SHORT).show()
-            updateStatus()
-        }
-
         // 打开通知监听权限设置
         btnOpenNotificationAccess.setOnClickListener {
             startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
-        }
-
-        // 测试通知按钮
-        btnTestNotify.setOnClickListener {
-            sendTestNotification()
-            Toast.makeText(this, "已发送测试通知", Toast.LENGTH_SHORT).show()
-        }
-
-        // 手动dump当前屏幕按钮
-        btnDumpNow.setOnClickListener {
-            Toast.makeText(this, "3秒后自动读取，请立刻切到微信服务通知页面", Toast.LENGTH_LONG).show()
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                AlipayAccessibilityService.manualDumpNow()
-            }, 3000)
-        }
-
-        // 复制日志按钮
-        btnCopyLog.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            val clip = android.content.ClipData.newPlainText("日志", tvLog.text.toString())
-            clipboard.setPrimaryClip(clip)
-            Toast.makeText(this, "日志已复制，直接粘贴发给我就行！", Toast.LENGTH_LONG).show()
         }
 
         updateStatus()
@@ -126,6 +103,22 @@ class MainActivity : Activity() {
                 if (logText.length > 5000) {
                     tvLog.text = logText.substring(logText.length - 5000)
                 }
+            }
+        }
+
+        // 注册收款回调：收到收款更新大金额显示
+        MqttClientManager.setPaymentCallback { amount, channel ->
+            runOnUiThread {
+                // 更新最新收款
+                tvLatestAmount.text = "¥$amount"
+                tvLatestChannel.text = channel
+                // 更新今日统计
+                try {
+                    todayTotal += amount.toFloat()
+                    todayCount += 1
+                    tvTodayTotal.text = "¥${String.format("%.2f", todayTotal)}"
+                    tvTodayCount.text = todayCount.toString()
+                } catch (e: Exception) {}
             }
         }
 
@@ -147,18 +140,18 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val pairCode = prefs.getString(KEY_PAIR_CODE, "未设置")
 
+        if (MqttClientManager.isConnected() && MqttClientManager.isPaired()) {
+            tvStatusTop.text = "已连接"
+            tvStatusTop.setTextColor(0xFF22C55E.toInt())
+        } else {
+            tvStatusTop.text = "等待配对"
+            tvStatusTop.setTextColor(0xFFF59E0B.toInt())
+        }
+
         val status = buildString {
-            append("通知监听权限: ")
-            append(if (isNotificationEnabled) "✅ 已开启" else "❌ 未开启（必须）")
-            append("\n")
-            append("配对码: ")
-            append(pairCode)
-            append("\n")
-            append("云端连接: ")
-            append(if (MqttClientManager.isConnected()) "✅ 已连接" else "❌ 未连接")
-            append("\n")
-            append("配对状态: ")
-            append(if (MqttClientManager.isPaired()) "✅ 已配对" else "⏳ 等待配对")
+            append("通知权限: ").append(if (isNotificationEnabled) "已开启" else "未开启").append(" · ")
+            append("云端: ").append(if (MqttClientManager.isConnected()) "已连接" else "未连接").append(" · ")
+            append("配对码: ").append(pairCode)
         }
         tvStatus.text = status
     }
@@ -176,32 +169,5 @@ class MainActivity : Activity() {
             }
         }
         return false
-    }
-
-    /**
-     * 发送测试通知
-     */
-    private fun sendTestNotification() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID_TEST,
-                "测试通知",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_TEST)
-            .setContentTitle("支付宝收款监听测试")
-            .setContentText("你已成功收款 0.01 元")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setAutoCancel(true)
-            .build()
-
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID_TEST, notification)
-
-        LogManager.addLog("测试", "已发送测试通知")
     }
 }
