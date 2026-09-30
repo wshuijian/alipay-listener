@@ -25,14 +25,7 @@ class MainActivity : Activity() {
     private lateinit var btnOpenNotificationAccess: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvLog: TextView
-    private lateinit var tvLatestAmount: TextView
-    private lateinit var tvLatestChannel: TextView
-    private lateinit var tvTodayTotal: TextView
-    private lateinit var tvTodayCount: TextView
     private lateinit var tvStatusTop: TextView
-
-    private var todayTotal: Float = 0f
-    private var todayCount: Int = 0
 
     private val PREFS_NAME = "alipay_listener_prefs"
     private val KEY_PAIR_CODE = "pair_code"
@@ -48,10 +41,6 @@ class MainActivity : Activity() {
         btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
         tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
-        tvLatestAmount = findViewById(R.id.tv_latest_amount)
-        tvLatestChannel = findViewById(R.id.tv_latest_channel)
-        tvTodayTotal = findViewById(R.id.tv_today_total)
-        tvTodayCount = findViewById(R.id.tv_today_count)
         tvStatusTop = findViewById(R.id.tv_status_top)
 
         // 加载保存的配对码
@@ -103,22 +92,6 @@ class MainActivity : Activity() {
                 if (logText.length > 5000) {
                     tvLog.text = logText.substring(logText.length - 5000)
                 }
-            }
-        }
-
-        // 注册收款回调：收到收款更新大金额显示
-        MqttClientManager.setPaymentCallback { amount, channel ->
-            runOnUiThread {
-                // 更新最新收款
-                tvLatestAmount.text = "¥$amount"
-                tvLatestChannel.text = channel
-                // 更新今日统计
-                try {
-                    todayTotal += amount.toFloat()
-                    todayCount += 1
-                    tvTodayTotal.text = "¥${String.format("%.2f", todayTotal)}"
-                    tvTodayCount.text = todayCount.toString()
-                } catch (e: Exception) {}
             }
         }
 
