@@ -142,7 +142,18 @@ class MainActivity : Activity() {
         val full = (decor.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN) != 0
         decor.systemUiVisibility = if (full) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else flags
         bottomBar.visibility = if (full) View.VISIBLE else View.GONE
-        topActions.visibility = if (full) View.VISIBLE else View.GONE
+        // 全屏时仍保留右上角操作区，让“眼睛”按钮可再次点击退出全屏
+        topActions.visibility = View.VISIBLE
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_UP &&
+            event.keyCode == android.view.KeyEvent.KEYCODE_ESCAPE &&
+            (window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN) != 0) {
+            toggleFullscreen()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }
