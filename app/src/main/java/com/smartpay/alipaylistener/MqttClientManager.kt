@@ -22,6 +22,7 @@ object MqttClientManager {
     private val pendingTriggerQueue = mutableListOf<String>()  // 断线时暂存银行卡触发消息，连接恢复后补发
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
+    private var paymentCallback: ((String, String) -> Unit)? = null
 
     fun setLogCallback(callback: (String) -> Unit) {
         logCallback = callback
@@ -33,6 +34,8 @@ object MqttClientManager {
 
     fun isConnected(): Boolean = isConnected
     fun isPaired(): Boolean = isPaired
+
+    fun setPaymentCallback(callback: (String, String) -> Unit) { paymentCallback = callback }
 
     fun connect(pairCode: String) {
         log("🔍 定位: connect() 被调用, 时间=${System.currentTimeMillis()}, pairCode=$pairCode, 当前状态 isConnected=$isConnected, isPaired=$isPaired")
@@ -193,6 +196,7 @@ object MqttClientManager {
             val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
             mqttClient?.publish(paymentTopic, message)
             log("✅ MQTT发布成功: ¥$amount, topic=$paymentTopic")
+            paymentCallback?.invoke(amount, if (source == "WECHAT") "微信" else if (source == "ALIPAY") "支付宝" else if (source.isEmpty()) "收款" else source)
         } catch (e: Exception) {
             log("❌ MQTT发布失败: ${e.message}")
             e.printStackTrace()
