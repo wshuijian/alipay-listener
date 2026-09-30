@@ -12,6 +12,7 @@ object MqttClientManager {
 
     private const val MQTT_BROKER = "tcp://broker.emqx.io:1883"
     private const val TOPIC_PREFIX = "smartpay/v1/"
+    private const val ORDER_RESULT_TOPIC = TOPIC_PREFIX + "order_result/"
 
     private var mqttClient: MqttClient? = null
     private var isConnected = false
@@ -87,7 +88,10 @@ object MqttClientManager {
                     if (isPaired) {
                         val paymentTopic = "${TOPIC_PREFIX}payment/$deviceId"
                         mqttClient?.subscribe(paymentTopic)
+                        val orderResultTopic = ORDER_RESULT_TOPIC + deviceId
+                        mqttClient?.subscribe(orderResultTopic)
                         log("已订阅收款主题: $paymentTopic")
+                        log("已订阅PC订单回传主题: $orderResultTopic")
                         log("🔍 断线重连成功，直接恢复订阅，跳过配对")
                     } else {
                         // 首次连接才发配对请求
@@ -117,6 +121,18 @@ object MqttClientManager {
                                 isPaired = true
                                 log("✅ 配对成功！")
                                 statusCallback?.invoke("paired", "配对成功")
+                            }
+                        } else if (topic == ORDER_RESULT_TOPIC + deviceId) {
+                            val json = JSONObject(payload)
+                            val amount = json.optString("amount", "").trim()
+                            val channel = json.optString("channel_name", json.optString("app_name", json.optString("channel", ""))).trim()
+                            val orderId = json.optString("order_id", json.optString("order_no", "")).trim()
+                            if (amount.isNotEmpty()) {
+                                val displayChannel = if (channel.isNotEmpty()) channel else "收款"
+                                log("收到PC订单回传: 金额=$amount, 渠道=$displayChannel, 订单号=$orderId")
+                                paymentCallback?.invoke(amount, displayChannel)
+                            } else {
+                                log("PC订单回传缺少金额，忽略: $payload")
                             }
                         }
                     } catch (e: Exception) {
