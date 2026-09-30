@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="68dp" android:background="@drawable/bg_payment_card" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="18dp" android:paddingEnd="18dp">
+<TextView android:id="@+id/tv_payment_amount" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="¥0.00" android:textColor="#F5F7FA" android:textSize="30sp" android:textStyle="bold"/>
+<TextView android:id="@+id/tv_payment_channel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="14dp" android:text="支付宝" android:textColor="#AAB5C1" android:textSize="12sp"/>
+<TextView android:id="@+id/tv_payment_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="12:34:56" android:textColor="#778492" android:textSize="12sp"/>
+</LinearLayout>
