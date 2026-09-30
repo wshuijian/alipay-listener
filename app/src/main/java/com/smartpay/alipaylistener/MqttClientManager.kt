@@ -119,7 +119,11 @@ object MqttClientManager {
                             val json = JSONObject(payload)
                             if (json.optString("status") == "success") {
                                 isPaired = true
-                                log("✅ 配对成功！")
+                                val paymentTopic = "${TOPIC_PREFIX}payment/$deviceId"
+                                val orderResultTopic = ORDER_RESULT_TOPIC + deviceId
+                                mqttClient?.subscribe(paymentTopic)
+                                mqttClient?.subscribe(orderResultTopic)
+                                log("✅ 配对成功！已订阅收款与PC订单回传")
                                 statusCallback?.invoke("paired", "配对成功")
                             }
                         } else if (topic == ORDER_RESULT_TOPIC + deviceId) {
