@@ -200,7 +200,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 支付宝", "金额:¥$amount")
-                    MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title", source = "ALIPAY")
                 }
                 WECHAT_PACKAGE -> {
                     // 检测到邮付小助手收款通知，发送PC端拉单触发，不解析金额
@@ -218,7 +218,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 微信", "金额:¥$amount")
-                    MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text", source = "WECHAT")
                 }
             }
         } catch (e: Exception) {
