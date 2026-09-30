@@ -18,7 +18,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="支付宝收款监听"
+        android:label="智慧收款"
+        android:icon="@drawable/ic_smartpay"
+        android:roundIcon="@drawable/ic_smartpay"
         android:supportsRtl="true">
 
         <activity
