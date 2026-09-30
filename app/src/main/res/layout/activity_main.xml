@@ -1,194 +1,115 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F1419">
+    android:background="#0F1419"
+    android:orientation="vertical">
 
+    <!-- 顶部栏：店铺名 + 状态 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
-
-        <!-- 顶部状态 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="32dp">
-
-            <View
-                android:layout_width="8dp"
-                android:layout_height="8dp"
-                android:background="#22C55E"
-                android:layout_marginEnd="8dp"/>
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="收款播报服务运行中"
-                android:textColor="#8896A8"
-                android:textSize="14sp"/>
-
-            <TextView
-                android:id="@+id/tv_status_top"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="等待配对"
-                android:textColor="#F59E0B"
-                android:textSize="13sp"/>
-        </LinearLayout>
-
-        <!-- 最新收款大金额：绝对主角 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="刚刚收款"
-            android:textColor="#5A6878"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:layout_marginBottom="12dp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp">
 
         <TextView
-            android:id="@+id/tv_latest_amount"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:text="¥0.00"
+            android:text="星辰便利店"
             android:textColor="#F0F4F8"
-            android:textSize="88sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:letterSpacing="-0.03"
-            android:layout_marginBottom="16dp"/>
+            android:textSize="18sp"
+            android:textStyle="bold"/>
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="#22C55E"
+            android:layout_marginEnd="6dp"/>
 
         <TextView
-            android:id="@+id/tv_latest_channel"
+            android:id="@+id/tv_status_top"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="暂无收款"
-            android:textColor="#5A6878"
-            android:background="#1A2028"
-            android:padding="12dp"
-            android:textSize="14sp"
-            android:layout_gravity="center"
-            android:layout_marginBottom="40dp"/>
+            android:text="服务运行中"
+            android:textColor="#8896A8"
+            android:textSize="13sp"/>
+    </LinearLayout>
 
-        <!-- 今日统计 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="#1A2028"
-            android:padding="20dp"
-            android:orientation="horizontal"
-            android:layout_marginBottom="24dp">
+    <!-- 最近收款列表 -->
+    <ListView
+        android:id="@+id/lv_payments"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="#1A2028"
+        android:dividerHeight="8dp"
+        android:padding="12dp"/>
 
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+    <!-- 底部功能区 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1A2028"
+        android:padding="16dp"
+        android:orientation="vertical">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="今日收款总额"
-                    android:textColor="#8896A8"
-                    android:textSize="13sp"/>
-
-                <TextView
-                    android:id="@+id/tv_today_total"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="¥0.00"
-                    android:textColor="#B58B4E"
-                    android:textSize="28sp"
-                    android:textStyle="bold"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="right">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="今日笔数"
-                    android:textColor="#8896A8"
-                    android:textSize="13sp"/>
-
-                <TextView
-                    android:id="@+id/tv_today_count"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0"
-                    android:textColor="#F0F4F8"
-                    android:textSize="28sp"
-                    android:textStyle="bold"/>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- 配对输入 -->
         <EditText
             android:id="@+id/et_pair_code"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:hint="输入电脑端6位配对码"
+            android:layout_height="44dp"
+            android:hint="输入6位配对码"
             android:textColor="#F0F4F8"
             android:inputType="number"
             android:maxLength="6"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:gravity="center"
-            android:background="#1A2028"
+            android:background="#2D3744"
             android:layout_marginBottom="12dp"/>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="12dp">
 
             <Button
                 android:id="@+id/btn_start"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:text="开始监听"
                 android:textSize="14sp"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#07C160"
-                android:layout_marginEnd="8dp"/>
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btn_open_notification_access"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="44dp"
+                android:layout_height="42dp"
                 android:text="开通知权限"
                 android:textSize="14sp"
                 android:textColor="#FFFFFF"
                 android:backgroundTint="#1677FF"
-                android:layout_marginStart="8dp"/>
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
-        <!-- 状态和日志：弱化在底部 -->
         <TextView
             android:id="@+id/tv_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text=""
             android:textSize="12sp"
-            android:lineSpacingExtra="4dp"
             android:textColor="#8896A8"
             android:layout_marginBottom="8dp"/>
 
         <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:background="#1A2028">
+            android:layout_height="80dp"
+            android:background="#0F1419">
 
             <TextView
                 android:id="@+id/tv_log"
@@ -196,10 +117,11 @@
                 android:layout_height="wrap_content"
                 android:text=""
                 android:textSize="10sp"
-                android:padding="8dp"
+                android:padding="6dp"
                 android:fontFamily="monospace"
                 android:textColor="#5A6878"/>
         </ScrollView>
 
     </LinearLayout>
-</ScrollView>
+
+</LinearLayout>
