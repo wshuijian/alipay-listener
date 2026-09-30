@@ -1,146 +1,165 @@
 package com.smartpay.alipaylistener
 
 import android.app.Activity
-import android.app.NotificationManager
-import android.app.NotificationChannel
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.TextUtils
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
-import androidx.core.app.NotificationCompat
+import android.view.View
+import android.view.Window
+import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : Activity() {
-
-    private lateinit var etPairCode: EditText
-    private lateinit var btnStart: Button
-    private lateinit var btnOpenNotificationAccess: Button
+    private lateinit var listView: ListView
+    private lateinit var adapter: PaymentAdapter
     private lateinit var tvStatus: TextView
+    private lateinit var tvClock: TextView
+    private lateinit var panelData: View
+    private lateinit var panelDevice: View
+    private lateinit var panelSettings: View
+    private lateinit var bottomBar: View
+    private lateinit var topActions: View
+    private lateinit var etPairCode: EditText
     private lateinit var tvLog: TextView
-    private lateinit var tvStatusTop: TextView
-
-    private val PREFS_NAME = "alipay_listener_prefs"
-    private val KEY_PAIR_CODE = "pair_code"
-    private val CHANNEL_ID_TEST = "test_channel"
-    private val NOTIFICATION_ID_TEST = 9999
+    private val prefsName = "alipay_listener_prefs"
+    private val paymentsKey = "recent_payments"
+    private val handler = Handler(Looper.getMainLooper())
+    private val recentPayments = mutableListOf<Payment>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.activity_main)
+        bindViews()
+        loadPayments()
+        setupActions()
+        showPanel(0)
+        updateStatus()
+        startClock()
+        LogManager.setLogCallback { log -> runOnUiThread { tvLog.append(log + "\n") } }
+        MqttClientManager.setPaymentCallback { amount, channel -> runOnUiThread { addPayment(amount, channel) } }
+        MqttClientManager.setStatusCallback { _, _ -> runOnUiThread { updateStatus() } }
+    }
 
+    private fun bindViews() {
+        listView = findViewById(R.id.lv_payments)
+        adapter = PaymentAdapter(this, recentPayments)
+        listView.adapter = adapter
+        tvStatus = findViewById(R.id.tv_status_top)
+        tvClock = findViewById(R.id.tv_clock)
+        panelData = findViewById(R.id.panel_data)
+        panelDevice = findViewById(R.id.panel_device)
+        panelSettings = findViewById(R.id.panel_settings)
+        bottomBar = findViewById(R.id.bottom_bar)
+        topActions = findViewById(R.id.top_actions)
         etPairCode = findViewById(R.id.et_pair_code)
-        btnStart = findViewById(R.id.btn_start)
-        btnOpenNotificationAccess = findViewById(R.id.btn_open_notification_access)
-        tvStatus = findViewById(R.id.tv_status)
         tvLog = findViewById(R.id.tv_log)
-        tvStatusTop = findViewById(R.id.tv_status_top)
+        etPairCode.setText(getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString("pair_code", ""))
+        findViewById<TextView>(R.id.tab_data).setOnClickListener { showPanel(0) }
+        findViewById<TextView>(R.id.tab_device).setOnClickListener { showPanel(1) }
+        findViewById<TextView>(R.id.tab_settings).setOnClickListener { showPanel(2) }
+    }
 
-        // 加载保存的配对码
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        etPairCode.setText(prefs.getString(KEY_PAIR_CODE, ""))
+    private fun showPanel(index: Int) {
+        panelData.visibility = if (index == 0) View.VISIBLE else View.GONE
+        panelDevice.visibility = if (index == 1) View.VISIBLE else View.GONE
+        panelSettings.visibility = if (index == 2) View.VISIBLE else View.GONE
+    }
 
-        // 自动启动云音箱MVP前台服务
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(Intent(this, SpeakerService::class.java))
-        } else {
-            startService(Intent(this, SpeakerService::class.java))
+    private fun setupActions() {
+        findViewById<ImageButton>(R.id.btn_fullscreen).setOnClickListener { toggleFullscreen() }
+        findViewById<ImageButton>(R.id.btn_orientation).setOnClickListener {
+            requestedOrientation = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
-
-        // 开始监听
-        btnStart.setOnClickListener {
-            val pairCode = etPairCode.text.toString().trim()
-            if (pairCode.length != 6) {
-                Toast.makeText(this, "请输入6位配对码", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            // 保存配对码
-            prefs.edit().putString(KEY_PAIR_CODE, pairCode).apply()
-
-            // 启动服务
-            val intent = Intent(this, KeepAliveService::class.java).apply {
-                putExtra("pair_code", pairCode)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
+        findViewById<Button>(R.id.btn_start).setOnClickListener {
+            val code = etPairCode.text.toString().trim()
+            if (code.length != 6) { Toast.makeText(this, "请输入6位配对码", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putString("pair_code", code).apply()
+            val i = Intent(this, KeepAliveService::class.java).putExtra("pair_code", code)
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
             Toast.makeText(this, "监听服务已启动", Toast.LENGTH_SHORT).show()
             updateStatus()
         }
-
-        // 打开通知监听权限设置
-        btnOpenNotificationAccess.setOnClickListener {
+        findViewById<Button>(R.id.btn_open_notification_access).setOnClickListener {
             startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
-        }
-
-        updateStatus()
-
-        // 注册日志回调
-        LogManager.setLogCallback { log ->
-            runOnUiThread {
-                tvLog.append(log + "\n")
-                val logText = tvLog.text.toString()
-                if (logText.length > 5000) {
-                    tvLog.text = logText.substring(logText.length - 5000)
-                }
-            }
-        }
-
-        // 注册状态回调
-        MqttClientManager.setStatusCallback { status, message ->
-            runOnUiThread {
-                updateStatus()
-            }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        updateStatus()
+    private fun addPayment(amount: String, channel: String) {
+        if (amount.trim().isEmpty()) return
+        recentPayments.add(0, Payment(amount.trim(), if (channel.isEmpty()) "收款" else channel, System.currentTimeMillis()))
+        while (recentPayments.size > 10) recentPayments.removeAt(recentPayments.lastIndex)
+        savePayments()
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun savePayments() {
+        val value = recentPayments.joinToString(";") { it.time.toString() + "|" + it.amount + "|" + it.channel }
+        getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putString(paymentsKey, value).apply()
+    }
+
+    private fun loadPayments() {
+        val value = getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString(paymentsKey, "") ?: return
+        if (value.isEmpty()) return
+        value.split(";").forEach {
+            val p = it.split("|")
+            if (p.size == 3) recentPayments.add(Payment(p[1], p[2], p[0].toLongOrNull() ?: System.currentTimeMillis()))
+        }
+        while (recentPayments.size > 10) recentPayments.removeAt(recentPayments.lastIndex)
     }
 
     private fun updateStatus() {
-        val isNotificationEnabled = isNotificationServiceEnabled()
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val pairCode = prefs.getString(KEY_PAIR_CODE, "未设置")
-
-        if (MqttClientManager.isConnected() && MqttClientManager.isPaired()) {
-            tvStatusTop.text = "已连接"
-            tvStatusTop.setTextColor(0xFF22C55E.toInt())
-        } else {
-            tvStatusTop.text = "等待配对"
-            tvStatusTop.setTextColor(0xFFF59E0B.toInt())
-        }
-
-        val status = buildString {
-            append("通知权限: ").append(if (isNotificationEnabled) "已开启" else "未开启").append(" · ")
-            append("云端: ").append(if (MqttClientManager.isConnected()) "已连接" else "未连接").append(" · ")
-            append("配对码: ").append(pairCode)
-        }
-        tvStatus.text = status
+        val paired = MqttClientManager.isConnected() && MqttClientManager.isPaired()
+        tvStatus.text = if (paired) "已连接" else "未连接"
+        tvStatus.setTextColor(if (paired) 0xFF62D88F.toInt() else 0xFFF2B84B.toInt())
+        findViewById<TextView>(R.id.tv_device_status).text = if (paired) "MQTT：已连接并已配对" else "MQTT：等待连接或配对"
+        findViewById<TextView>(R.id.tv_notification_status).text = if (isNotificationServiceEnabled()) "通知监听：已开启" else "通知监听：未开启"
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
-        val pkgName = packageName
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
-        if (!TextUtils.isEmpty(flat)) {
-            val names = flat.split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            for (name in names) {
-                val cn = ComponentName.unflattenFromString(name)
-                if (cn != null && TextUtils.equals(pkgName, cn.packageName)) {
-                    return true
-                }
-            }
+        if (TextUtils.isEmpty(flat)) return false
+        return flat.split(":").any { ComponentName.unflattenFromString(it)?.packageName == packageName }
+    }
+
+    private fun startClock() {
+        handler.post(object : Runnable {
+            override fun run() { tvClock.text = SimpleDateFormat("yyyy-MM-dd  HH:mm:ss", Locale.getDefault()).format(Date()); handler.postDelayed(this, 1000) }
+        })
+    }
+
+    private fun toggleFullscreen() {
+        val decor = window.decorView
+        val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        val full = (decor.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN) != 0
+        decor.systemUiVisibility = if (full) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else flags
+        bottomBar.visibility = if (full) View.VISIBLE else View.GONE
+        topActions.visibility = if (full) View.VISIBLE else View.GONE
+    }
+
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }
+
+    data class Payment(val amount: String, val channel: String, val time: Long)
+
+    private class PaymentAdapter(private val context: Context, private val items: List<Payment>) : BaseAdapter() {
+        override fun getCount() = items.size
+        override fun getItem(position: Int) = items[position]
+        override fun getItemId(position: Int) = position.toLong()
+        override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
+            val v = convertView ?: android.view.LayoutInflater.from(context).inflate(R.layout.item_payment, parent, false)
+            val item = items[position]
+            v.findViewById<TextView>(R.id.tv_payment_amount).text = "¥" + item.amount
+            v.findViewById<TextView>(R.id.tv_payment_channel).text = item.channel
+            v.findViewById<TextView>(R.id.tv_payment_time).text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
+            return v
         }
-        return false
     }
 }
