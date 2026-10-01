@@ -65,6 +65,13 @@ class MainActivity : Activity() {
         findViewById<TextView>(R.id.tab_data).setOnClickListener { showPanel(0) }
         findViewById<TextView>(R.id.tab_device).setOnClickListener { showPanel(1) }
         findViewById<TextView>(R.id.tab_settings).setOnClickListener { showPanel(2) }
+        // 复制全部日志到剪贴板
+        findViewById<Button>(R.id.btn_copy_log).setOnClickListener {
+            val allLogs = LogManager.getAllLogs().joinToString("\n")
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("收款日志", allLogs))
+            android.widget.Toast.makeText(this, "日志已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showPanel(index: Int) {
