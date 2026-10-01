@@ -50,6 +50,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         logNotificationPosted(sbn)
 
         if (!DIAGNOSTICS_ONLY) {
+            // 只有新通知POST才进入处理流程，通知UPDATE不重复触发bank_trigger
+            if (!isNewPost) return
             if (timeDiff > 10000) return
             processNotification(sbn)
         }
