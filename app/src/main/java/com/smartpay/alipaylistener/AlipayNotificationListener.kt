@@ -186,7 +186,6 @@ class AlipayNotificationListener : NotificationListenerService() {
             val extras = notification.extras ?: return
             val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
-            LogManager.addLog("[通知收到]", "package=$packageName title=$title text=$text")
 
             val eventKey = "${sbn.key}_${sbn.postTime}"
             if (processedKeys.contains(eventKey)) return
@@ -198,33 +197,27 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val channelId = notification.channelId ?: ""
                     if (channelId != ALIPAY_PAY_CHANNEL) return
                     val matcher = ALIPAY_AMOUNT_PATTERN.matcher(title)
-                    if (!matcher.find()) {
-                        LogManager.addLog("[金额解析失败]", "支付宝通知未匹配到金额，title=$title")
-                        return
-                    }
+                    if (!matcher.find()) return
                     val amount = matcher.group(1)
-                    LogManager.addLog("[金额解析]", "支付宝 amount=$amount")
+                    LogManager.addLog("✅ 支付宝", "金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title", source = "ALIPAY")
                 }
                 WECHAT_PACKAGE -> {
                     // 检测到邮付小助手收款通知，发送PC端拉单触发，不解析金额
                     if (title == "邮付小助手" && text.contains("收款到账通知")) {
-                        LogManager.addLog("[金额解析]", "邮付小助手 银行卡触发，不解析金额")
+                        LogManager.addLog("🔔 邮付触发", "检测到邮付收款通知，发送拉单触发到PC")
                         MqttClientManager.sendWeipayTrigger(appName = "邮付小助手")
                         return
                     }
                     if (title == "安徽农金云收单" && text.contains("收款到账通知")) {
-                        LogManager.addLog("[金额解析]", "安徽农金 银行卡触发，不解析金额")
+                        LogManager.addLog("🔔 农金触发", "检测到安徽农金收款通知，发送拉单触发到PC")
                         MqttClientManager.sendWeipayTrigger(appName = "安徽农金")
                         return
                     }
                     val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
-                    if (!matcher.find()) {
-                        LogManager.addLog("[金额解析失败]", "微信通知未匹配到金额，text=$text")
-                        return
-                    }
+                    if (!matcher.find()) return
                     val amount = matcher.group(1)
-                    LogManager.addLog("[金额解析]", "微信 amount=$amount")
+                    LogManager.addLog("✅ 微信", "金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text", source = "WECHAT")
                 }
             }
