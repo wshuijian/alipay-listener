@@ -50,10 +50,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         logNotificationPosted(sbn)
 
         if (!DIAGNOSTICS_ONLY) {
-            // 只有新通知POST才进入处理流程，通知UPDATE不重复触发bank_trigger
-            if (!isNewPost) return
             if (timeDiff > 10000) return
-            processNotification(sbn)
+            processNotification(sbn, isNewPost)
         }
     }
 
@@ -181,7 +179,7 @@ class AlipayNotificationListener : NotificationListenerService() {
         return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(millis))
     }
 
-    private fun processNotification(sbn: StatusBarNotification) {
+    private fun processNotification(sbn: StatusBarNotification, isNewPost: Boolean) {
         val packageName = sbn.packageName
         try {
             val notification = sbn.notification ?: return
@@ -196,6 +194,8 @@ class AlipayNotificationListener : NotificationListenerService() {
 
             when (packageName) {
                 ALIPAY_PACKAGE -> {
+                    // 普通支付宝收款只在新POST处理，UPDATE不重复发
+                    if (!isNewPost) return
                     val channelId = notification.channelId ?: ""
                     if (channelId != ALIPAY_PAY_CHANNEL) return
                     val matcher = ALIPAY_AMOUNT_PATTERN.matcher(title)
@@ -205,7 +205,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title", source = "ALIPAY")
                 }
                 WECHAT_PACKAGE -> {
-                    // 检测到邮付小助手收款通知，发送PC端拉单触发，不解析金额
+                    // 检测到邮付小助手收款通知，不管是POST还是UPDATE（微信聚合通知）都触发bank_trigger
                     if (title == "邮付小助手" && text.contains("收款到账通知")) {
                         LogManager.addLog("🔔 邮付触发", "检测到邮付收款通知，发送拉单触发到PC")
                         MqttClientManager.sendWeipayTrigger(appName = "邮付小助手")
@@ -216,6 +216,8 @@ class AlipayNotificationListener : NotificationListenerService() {
                         MqttClientManager.sendWeipayTrigger(appName = "安徽农金")
                         return
                     }
+                    // 普通微信收款只在新POST处理，UPDATE不重复发
+                    if (!isNewPost) return
                     val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
