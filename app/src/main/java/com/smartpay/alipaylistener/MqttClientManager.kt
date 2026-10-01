@@ -38,6 +38,10 @@ object MqttClientManager {
 
     fun setPaymentCallback(callback: (String, String) -> Unit) { paymentCallback = callback }
 
+    // bank_trigger同app_name去重：800ms内不重复发送
+    private var lastTriggerAppName = ""
+    private var lastTriggerTime = 0L
+
     fun connect(pairCode: String) {
         log("🔍 定位: connect() 被调用, 时间=${System.currentTimeMillis()}, pairCode=$pairCode, 当前状态 isConnected=$isConnected, isPaired=$isPaired")
         // 打印调用来源栈，定位是谁调的connect
@@ -224,6 +228,14 @@ object MqttClientManager {
     }
 
     fun sendWeipayTrigger(appName: String = "邮付小助手") {
+        // 800ms内同一个app_name不重复发送bank_trigger
+        val now = System.currentTimeMillis()
+        if (appName == lastTriggerAppName && now - lastTriggerTime < 800) {
+            log("跳过重复bank_trigger: $appName 距上次发送仅${now - lastTriggerTime}ms")
+            return
+        }
+        lastTriggerAppName = appName
+        lastTriggerTime = now
         log("发送银行卡拉单触发消息到PC: $appName")
         if (!isConnected || !isPaired || mqttClient == null) {
             log("⚠️ MQTT未连接，触发消息暂存本地队列，等待重连后补发")
