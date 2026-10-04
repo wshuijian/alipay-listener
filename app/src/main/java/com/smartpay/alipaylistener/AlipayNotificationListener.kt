@@ -216,13 +216,14 @@ class AlipayNotificationListener : NotificationListenerService() {
                         MqttClientManager.sendWeipayTrigger(appName = "安徽农金")
                         return
                     }
-                    // 普通微信收款只在新POST处理，UPDATE不重复发
-                    if (!isNewPost) return
-                    val matcher = WECHAT_AMOUNT_PATTERN.matcher(text)
+                    // 微信POST和UPDATE都进入金额解析流程，靠现有processedKeys去重避免重复播报
+                    // 先去掉通知聚合前缀：[2条] [3条] 等
+                    var cleanText = text.replace(Regex("^\\[\\d+条\\]"), "").trim()
+                    val matcher = WECHAT_AMOUNT_PATTERN.matcher(cleanText)
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
-                    LogManager.addLog("✅ 微信", "金额:¥$amount")
-                    MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$text", source = "WECHAT")
+                    LogManager.addLog("✅ 微信", "金额:¥$amount 通知类型=${if(isNewPost) "POST" else "UPDATE"}")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$cleanText", source = "WECHAT")
                 }
             }
         } catch (e: Exception) {
