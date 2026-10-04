@@ -193,10 +193,14 @@ object MqttClientManager {
     }
 
     fun sendPayment(amount: String, rawText: String, appName: String = "", source: String = "ALIPAY") {
-        log("收到收款通知准备发送: 金额=$amount, 原始内容=${rawText.take(50)}, 公众号=$appName")
+        log("收到收款通知: 金额=$amount, 原始内容=${rawText.take(50)}, 公众号=$appName")
+        // 第一步：不管MQTT是否连接，先执行本地UI更新和TTS播报，本地收款完全不依赖MQTT
+        val displayChannel = if (source == "WECHAT") "微信" else if (source == "ALIPAY") "支付宝" else if (appName.isNotEmpty()) appName else "收款"
+        paymentCallback?.invoke(amount, displayChannel)
+        // 第二步：本地处理完成后，再判断是否要发送MQTT到PC，未连接则只跳过网络发送，不丢弃本地收款
         log("MQTT状态: isConnected=$isConnected, isPaired=$isPaired, client是否为空=${mqttClient == null}")
         if (!isConnected || !isPaired || mqttClient == null) {
-            log("❌ 未连接或未配对，丢弃这笔收款通知: ¥$amount")
+            log("⚠️ MQTT未连接，跳过发送到PC，本地播报已完成: ¥$amount")
             return
         }
 
@@ -216,7 +220,6 @@ object MqttClientManager {
             val message = MqttMessage(json.toString().toByteArray()).apply { qos = 1 }
             mqttClient?.publish(paymentTopic, message)
             log("✅ MQTT发布成功: ¥$amount, topic=$paymentTopic")
-            paymentCallback?.invoke(amount, if (source == "WECHAT") "微信" else if (source == "ALIPAY") "支付宝" else if (source.isEmpty()) "收款" else source)
         } catch (e: Exception) {
             log("❌ MQTT发布失败: ${e.message}")
             e.printStackTrace()
