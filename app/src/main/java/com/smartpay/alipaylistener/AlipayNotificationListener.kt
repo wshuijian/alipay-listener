@@ -50,7 +50,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         logNotificationPosted(sbn)
 
         if (!DIAGNOSTICS_ONLY) {
-            if (timeDiff > 10000) return
+            // 仅新POST通知做10秒延迟过滤，已识别过的通知UPDATE不受10秒限制
+            if (isNewPost && timeDiff > 10000) return
             processNotification(sbn, isNewPost)
         }
     }
