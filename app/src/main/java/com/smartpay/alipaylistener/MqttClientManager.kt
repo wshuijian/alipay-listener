@@ -126,6 +126,8 @@ object MqttClientManager {
                 connectionTimeout = 15
                 keepAliveInterval = 30
                 isAutomaticReconnect = false  // 关闭自动重连，只用手动重连，避免冲突
+                // TLS连接：使用系统默认信任的SSL SocketFactory，无需自定义证书
+                socketFactory = javax.net.ssl.SSLContext.getDefault().socketFactory
             }
 
             mqttClient?.setCallback(object : MqttCallbackExtended {
