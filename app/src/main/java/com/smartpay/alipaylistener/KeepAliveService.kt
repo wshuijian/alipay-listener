@@ -14,12 +14,41 @@ class KeepAliveService : Service() {
     companion object {
         private const val CHANNEL_ID = "alipay_listener_channel"
         private const val NOTIFICATION_ID = 1001
+        // 静态实例，供MqttClientManager获取context诊断网络状态
+        var instance: KeepAliveService? = null
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+        // 注册网络状态监听，记录网络变化
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                LogManager.addLog("网络诊断", "网络已连接: $network")
+            }
+            override fun onLost(network: Network) {
+                LogManager.addLog("网络诊断", "网络已断开: $network")
+            }
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                val type = when {
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "蜂窝移动数据"
+                    else -> "其他"
+                }
+                LogManager.addLog("网络诊断", "网络状态变化: $type")
+            }
+        }
+        try {
+            val req = NetworkRequest.Builder().build()
+            cm.registerNetworkCallback(req, networkCallback)
+            LogManager.addLog("网络诊断", "网络状态监听已注册")
+        } catch (e: Exception) {
+            LogManager.addLog("网络诊断", "注册网络监听失败: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -39,6 +68,7 @@ class KeepAliveService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        instance = null
         MqttClientManager.disconnect()
     }
 

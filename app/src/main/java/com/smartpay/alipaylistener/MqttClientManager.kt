@@ -4,6 +4,11 @@ import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import org.json.JSONObject
 import java.util.*
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 
 /**
  * MQTT客户端管理器（全网通）
@@ -133,13 +138,33 @@ object MqttClientManager {
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
                     // 断线保留已配对状态，重连不需要重新配对
-                    log("MQTT断开事件触发")
-                    log("断开异常类型: ${cause?.javaClass?.name ?: "无异常(主动断开)"}")
-                    log("断开原因: ${cause?.message ?: "无错误信息"}")
-                    log("断开完整堆栈:")
-                    cause?.printStackTrace()?.let { log(it.toString()) }
-                    cause?.stackTrace?.forEach { log("  at $it") }
+                    log("=== [MQTT_SOCKET_DIAG] 断线现场诊断 ===")
+                    log("exception_type: ${cause?.javaClass?.name ?: "主动断开"}")
+                    log("exception_message: ${cause?.message ?: "无"}")
+                    cause?.let {
+                        log("exception_cause: ${it.cause?.javaClass?.name}: ${it.cause?.message}")
+                        log("exception_full_stack:")
+                        it.stackTrace.forEach { frame -> log("  at $frame") }
+                    }
+                    // Paho 1.2.5 内部Socket为私有字段，外部无法直接获取
+                    log("socket_diag: Paho 1.2.5内部Socket为私有封装，外部无法直接读取socket状态")
+                    // 打印当前网络状态
+                    try {
+                        val ctx = KeepAliveService.instance ?: LogManager
+                        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                        val activeNet = cm.activeNetwork
+                        val caps = activeNet?.let { cm.getNetworkCapabilities(it) }
+                        val netType = when {
+                            caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
+                            caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "蜂窝移动数据"
+                            else -> "其他/无网络"
+                        }
+                        log("network_status: 当前网络=$netType activeNetwork=$activeNet")
+                    } catch (e: Exception) {
+                        log("network_status: 获取网络状态失败: ${e.message}")
+                    }
                     log("保留已配对状态 isPaired=$isPaired")
+                    log("=== 断线现场诊断结束 ===")
                     statusCallback?.invoke("disconnected", "连接断开")
                     // 5秒后重连（用同一个deviceId）
                     scheduleReconnect()
