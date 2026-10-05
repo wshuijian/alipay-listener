@@ -15,7 +15,7 @@ import android.net.NetworkRequest
  */
 object MqttClientManager {
 
-    private const val MQTT_BROKER = "tcp://broker.emqx.io:1883"
+    private const val MQTT_BROKER = "ssl://broker.emqx.io:8883"
     private const val TOPIC_PREFIX = "smartpay/v1/"
     private const val ORDER_RESULT_TOPIC = TOPIC_PREFIX + "order_result/"
 
