@@ -36,6 +36,10 @@ object MqttClientManager {
         log("正在重连...")
         connect(pairCode)
     }
+    // 心跳记录变量，只记录最后一次ping时间，不打实时日志
+    private var lastPingReqTime = 0L
+    private var lastPingRespTime = 0L
+    private var pingOutstanding = false
 
     fun setLogCallback(callback: (String) -> Unit) {
         logCallback = callback
@@ -82,23 +86,35 @@ object MqttClientManager {
 
             mqttClient = MqttClient(MQTT_BROKER, deviceId, MemoryPersistence())
 
-            // 打开Paho底层comms层详细日志，观察PINGREQ/PINGRESP心跳收发
+            // Paho comms日志降噪：只保留严重错误和心跳记录，关闭正常运行刷屏日志
             try {
                 val mqttLogger = java.util.logging.Logger.getLogger("org.eclipse.paho.client.mqttv3.internal")
-                mqttLogger.level = java.util.logging.Level.FINE
+                mqttLogger.level = java.util.logging.Level.SEVERE
                 val handler = object : java.util.logging.Handler() {
                     override fun publish(record: java.util.logging.LogRecord) {
-                        val msg = "[MQTT_COMMS] ${record.level.name}: ${record.message}"
-                        log(msg)
+                        val msg = record.message?.toString() ?: ""
+                        // 只记录PINGREQ/PINGRESP时间，不打每一条心跳日志
+                        if (msg.contains("PINGREQ", ignoreCase = true)) {
+                            lastPingReqTime = System.currentTimeMillis()
+                            pingOutstanding = true
+                        }
+                        if (msg.contains("PINGRESP", ignoreCase = true)) {
+                            lastPingRespTime = System.currentTimeMillis()
+                            pingOutstanding = false
+                        }
+                        // 只打印异常/错误级别的comms日志
+                        if (record.level == java.util.logging.Level.SEVERE || record.level == java.util.logging.Level.WARNING) {
+                            log("[MQTT_COMMS_ERROR] ${record.level.name}: $msg")
+                        }
                     }
                     override fun flush() {}
                     override fun close() {}
                 }
                 mqttLogger.addHandler(handler)
                 mqttLogger.useParentHandlers = false
-                log("已打开Paho comms心跳日志")
+                log("Paho comms日志已降噪，仅保留错误和心跳记录")
             } catch (e: Exception) {
-                log("打开comms日志失败: ${e.message}")
+                log("配置comms日志失败: ${e.message}")
             }
 
             val options = MqttConnectOptions().apply {
@@ -148,6 +164,9 @@ object MqttClientManager {
                     }
                     // Paho 1.2.5 内部Socket为私有字段，外部无法直接获取
                     log("socket_diag: Paho 1.2.5内部Socket为私有封装，外部无法直接读取socket状态")
+                    // 打印最后一次心跳摘要
+                    val fmtTime = { ts: Long -> if (ts == 0L) "无记录" else android.text.format.DateFormat.format("HH:mm:ss", ts).toString() }
+                    log("heartbeat_summary: lastPingReq=${fmtTime(lastPingReqTime)} lastPingResp=${fmtTime(lastPingRespTime)} pingOutstanding=$pingOutstanding")
                     // 打印当前网络状态
                     try {
                         val ctx = KeepAliveService.instance
