@@ -80,7 +80,7 @@ object MqttClientManager {
             val options = MqttConnectOptions().apply {
                 isCleanSession = true
                 connectionTimeout = 15
-                keepAliveInterval = 60
+                keepAliveInterval = 30
                 isAutomaticReconnect = false  // 关闭自动重连，只用手动重连，避免冲突
             }
 
