@@ -114,7 +114,13 @@ object MqttClientManager {
                 override fun connectionLost(cause: Throwable?) {
                     isConnected = false
                     // 断线保留已配对状态，重连不需要重新配对
-                    log("连接断开: ${cause?.message}, 保留已配对状态 isPaired=$isPaired")
+                    log("MQTT断开事件触发")
+                    log("断开异常类型: ${cause?.javaClass?.name ?: "无异常(主动断开)"}")
+                    log("断开原因: ${cause?.message ?: "无错误信息"}")
+                    log("断开完整堆栈:")
+                    cause?.printStackTrace()?.let { log(it.toString()) }
+                    cause?.stackTrace?.forEach { log("  at $it") }
+                    log("保留已配对状态 isPaired=$isPaired")
                     statusCallback?.invoke("disconnected", "连接断开")
                     // 5秒后重连（用同一个deviceId）
                     scheduleReconnect()
