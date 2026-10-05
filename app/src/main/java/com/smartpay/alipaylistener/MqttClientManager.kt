@@ -77,6 +77,25 @@ object MqttClientManager {
 
             mqttClient = MqttClient(MQTT_BROKER, deviceId, MemoryPersistence())
 
+            // 打开Paho底层comms层详细日志，观察PINGREQ/PINGRESP心跳收发
+            try {
+                val mqttLogger = java.util.logging.Logger.getLogger("org.eclipse.paho.client.mqttv3.internal")
+                mqttLogger.level = java.util.logging.Level.FINE
+                val handler = object : java.util.logging.Handler() {
+                    override fun publish(record: java.util.logging.LogRecord) {
+                        val msg = "[MQTT_COMMS] ${record.level.name}: ${record.message}"
+                        log(msg)
+                    }
+                    override fun flush() {}
+                    override fun close() {}
+                }
+                mqttLogger.addHandler(handler)
+                mqttLogger.useParentHandlers = false
+                log("已打开Paho comms心跳日志")
+            } catch (e: Exception) {
+                log("打开comms日志失败: ${e.message}")
+            }
+
             val options = MqttConnectOptions().apply {
                 isCleanSession = true
                 connectionTimeout = 15
