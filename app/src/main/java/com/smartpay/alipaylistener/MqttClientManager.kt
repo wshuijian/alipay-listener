@@ -93,16 +93,20 @@ object MqttClientManager {
                 val handler = object : java.util.logging.Handler() {
                     override fun publish(record: java.util.logging.LogRecord) {
                         val msg = record.message?.toString() ?: ""
-                        // 只记录PINGREQ/PINGRESP时间，不打每一条心跳日志
+                        val nowStr = android.text.format.DateFormat.format("HH:mm:ss.SSS", System.currentTimeMillis()).toString()
+                        // 捕获Paho原生PINGREQ发送事件
                         if (msg.contains("PINGREQ", ignoreCase = true)) {
                             lastPingReqTime = System.currentTimeMillis()
                             pingOutstanding = true
+                            log("[MQTT_HEARTBEAT] PINGREQ time=$nowStr")
                         }
+                        // 捕获Paho原生PINGRESP接收事件
                         if (msg.contains("PINGRESP", ignoreCase = true)) {
                             lastPingRespTime = System.currentTimeMillis()
                             pingOutstanding = false
+                            log("[MQTT_HEARTBEAT] PINGRESP time=$nowStr")
                         }
-                        // 只打印异常/错误级别的comms日志
+                        // 只打印异常/错误级别的comms日志，其他正常运行日志静默
                         if (record.level == java.util.logging.Level.SEVERE || record.level == java.util.logging.Level.WARNING) {
                             log("[MQTT_COMMS_ERROR] ${record.level.name}: $msg")
                         }
