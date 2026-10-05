@@ -24,6 +24,13 @@ object MqttClientManager {
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
     private var paymentCallback: ((String, String) -> Unit)? = null
+    // 使用主线程Handler做延迟重连，避免普通线程在Doze下被挂起
+    private val reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val reconnectRunnable = Runnable {
+        isReconnecting = false
+        log("正在重连...")
+        connect(pairCode)
+    }
 
     fun setLogCallback(callback: (String) -> Unit) {
         logCallback = callback
@@ -46,9 +53,10 @@ object MqttClientManager {
         } catch (e: Exception) {
             log("🔍 定位: connect() 调用栈: ${e.stackTraceToString().take(500)}")
         }
-        // 防止重复初始化：已经连接且配对成功就直接返回，不重复新建MQTT实例
-        if (isConnected && isPaired && mqttClient != null) {
-            log("⚠️ 已经处于连接配对状态，跳过重复connect调用")
+        // 防止重复初始化：只要MQTT客户端存在、已连接、或者正在重连，就直接返回，不重复新建连接
+        // 即使已经连接但未配对，也不重复重建连接，等待配对响应即可
+        if (mqttClient != null && (isConnected || isReconnecting)) {
+            log("⚠️ MQTT已连接或正在重连，跳过重复connect调用")
             return
         }
         this.pairCode = pairCode
@@ -79,6 +87,8 @@ object MqttClientManager {
             mqttClient?.setCallback(object : MqttCallbackExtended {
                 override fun connectComplete(reconnect: Boolean, serverURI: String?) {
                     isConnected = true
+                    // 连接成功，取消所有待执行的重连任务
+                    reconnectHandler.removeCallbacks(reconnectRunnable)
                     log("✅ MQTT连接成功，已连接到服务器: $serverURI, 是否重连=$reconnect")
                     statusCallback?.invoke("connected", "连接成功")
                     // 订阅配对响应主题
@@ -161,18 +171,14 @@ object MqttClientManager {
     }
 
     /**
-     * 安排重连（防止重复重连）
+     * 安排重连（防止重复重连，用主线程Handler延迟5秒，避免Doze下线程被挂起）
      */
     private fun scheduleReconnect() {
         if (isReconnecting) return
         isReconnecting = true
-        
-        Thread {
-            Thread.sleep(5000)
-            isReconnecting = false
-            log("正在重连...")
-            connect(pairCode)
-        }.start()
+        // 先移除旧的待执行重连任务，确保同一时间只有一个重连任务
+        reconnectHandler.removeCallbacks(reconnectRunnable)
+        reconnectHandler.postDelayed(reconnectRunnable, 5000)
     }
 
     private fun sendPairRequest() {
