@@ -150,16 +150,20 @@ object MqttClientManager {
                     log("socket_diag: Paho 1.2.5内部Socket为私有封装，外部无法直接读取socket状态")
                     // 打印当前网络状态
                     try {
-                        val ctx = KeepAliveService.instance ?: LogManager
-                        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val activeNet = cm.activeNetwork
-                        val caps = activeNet?.let { cm.getNetworkCapabilities(it) }
-                        val netType = when {
-                            caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
-                            caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "蜂窝移动数据"
-                            else -> "其他/无网络"
+                        val ctx = KeepAliveService.instance
+                        if (ctx != null) {
+                            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                            val activeNet = cm.activeNetwork
+                            val caps = activeNet?.let { cm.getNetworkCapabilities(it) }
+                            val netType = when {
+                                caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
+                                caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "蜂窝移动数据"
+                                else -> "其他/无网络"
+                            }
+                            log("network_status: 当前网络=$netType activeNetwork=$activeNet")
+                        } else {
+                            log("network_status: 服务未运行，无法获取网络状态")
                         }
-                        log("network_status: 当前网络=$netType activeNetwork=$activeNet")
                     } catch (e: Exception) {
                         log("network_status: 获取网络状态失败: ${e.message}")
                     }
