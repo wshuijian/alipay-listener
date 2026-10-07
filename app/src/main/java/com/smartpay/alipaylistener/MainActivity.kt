@@ -149,7 +149,7 @@ class MainActivity : Activity() {
         }
         // 本地TTS播报
         if (ttsEnabled) {
-            tts?.speak("${finalChannel}到账${amount}元", TextToSpeech.QUEUE_FLUSH, null, "payment_$time")
+            tts?.speak("${finalChannel}到账${amount}元", TextToSpeech.QUEUE_FLUSH, null, "payment_${System.currentTimeMillis()}")
         }
     }
 
