@@ -255,6 +255,8 @@ class AlipayNotificationListener : NotificationListenerService() {
             }
 
             // ===== 通用银行/收款通知规则（所有专用规则走完后才执行） =====
+            // 排除微信和支付宝包，避免和原有逻辑重复识别
+            if (packageName == WECHAT_PACKAGE || packageName == ALIPAY_PACKAGE) return
             // 1. 先检查负向关键词，命中直接跳过
             for (neg in NEGATIVE_KEYWORDS) {
                 if (text.contains(neg)) {

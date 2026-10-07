@@ -13,6 +13,8 @@ import android.text.TextUtils
 import android.view.View
 import android.view.Window
 import android.widget.*
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,6 +38,8 @@ class MainActivity : Activity() {
     private val selectedDay = Calendar.getInstance() // 当前选中查看的日期，默认今天
     private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private lateinit var tvSelectedDate: TextView
+    private var tts: TextToSpeech? = null
+    private var ttsEnabled = true // 默认开启软件TTS播报
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +52,12 @@ class MainActivity : Activity() {
         updateStatus()
         startClock()
         LogManager.setLogCallback { log -> runOnUiThread { tvLog.append(log + "\n") } }
+        // 初始化本地TTS播报
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.CHINESE
+            }
+        }
         MqttClientManager.setPaymentCallback { amount, channel -> runOnUiThread { addPayment(amount, channel) } }
         MqttClientManager.setStatusCallback { _, _ -> runOnUiThread { updateStatus() } }
     }
@@ -122,7 +132,13 @@ class MainActivity : Activity() {
 
     private fun addPayment(amount: String, channel: String) {
         if (amount.trim().isEmpty()) return
-        val newPayment = Payment(amount.trim(), if (channel.isEmpty()) "收款" else channel, System.currentTimeMillis())
+        val finalChannel = when {
+            channel.isEmpty() -> "银行卡收款"
+            channel.contains("微信") -> "微信支付"
+            channel.contains("支付宝") -> "支付宝"
+            else -> channel
+        }
+        val newPayment = Payment(amount.trim(), finalChannel, System.currentTimeMillis())
         allPayments.add(0, newPayment)
         savePayments()
         // 如果当前选中的是今天，刷新列表
@@ -130,6 +146,10 @@ class MainActivity : Activity() {
         if (selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
             selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)) {
             refreshDayList()
+        }
+        // 本地TTS播报
+        if (ttsEnabled) {
+            tts?.speak("${finalChannel}到账${amount}元", TextToSpeech.QUEUE_FLUSH, null, "payment_$time")
         }
     }
 
@@ -203,7 +223,12 @@ class MainActivity : Activity() {
         return super.dispatchKeyEvent(event)
     }
 
-    override fun onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy() }
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        tts?.stop()
+        tts?.shutdown()
+        super.onDestroy()
+    }
 
     data class Payment(val amount: String, val channel: String, val time: Long)
 
@@ -219,23 +244,25 @@ class MainActivity : Activity() {
             channelTv.text = item.channel
             v.findViewById<TextView>(R.id.tv_payment_time).text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
             // 渠道颜色：微信绿、支付宝蓝、其他银行红
-            when {
-                item.channel.contains("微信") -> channelTv.setTextColor(0xFF07C160.toInt())
-                item.channel.contains("支付宝") -> channelTv.setTextColor(0xFF1677FF.toInt())
-                else -> channelTv.setTextColor(0xFFF43F5E.toInt())
+            val channelColor = when {
+                item.channel.contains("微信") -> 0xFF07C160.toInt()
+                item.channel.contains("支付宝") -> 0xFF1677FF.toInt()
+                else -> 0xFFF43F5E.toInt()
             }
+            channelTv.setTextColor(channelColor)
+            val amountTv = v.findViewById<TextView>(R.id.tv_payment_amount)
             // 最新一笔高亮：只有当前选中是今天，且是列表第一笔时高亮
             val today = Calendar.getInstance()
             val isToday = selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
                     selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
             if (position == 0 && isToday) {
                 v.setBackgroundColor(0x331677FF.toInt()) // 蓝色半透明高亮背景
-                v.findViewById<TextView>(R.id.tv_payment_amount).setTextColor(android.graphics.Color.WHITE)
-                v.findViewById<TextView>(R.id.tv_payment_amount).textSize = 28f
+                amountTv.setTextColor(channelColor) // 大字金额用对应渠道色
+                amountTv.textSize = 28f
             } else {
                 v.setBackgroundColor(0x00000000) // 透明背景
-                v.findViewById<TextView>(R.id.tv_payment_amount).setTextColor(android.graphics.Color.WHITE)
-                v.findViewById<TextView>(R.id.tv_payment_amount).textSize = 22f
+                amountTv.setTextColor(channelColor) // 普通订单大字金额也用对应渠道色
+                amountTv.textSize = 22f
             }
             return v
         }
