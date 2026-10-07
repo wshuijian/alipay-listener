@@ -1,112 +1,86 @@
 package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
+import android.speech.tts.TextToSpeech
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.util.Locale
 
 /**
- * 金农e信付页面读取探针 - 第三阶段事件源分析版
- *
- * 目标：
- * 1. 保持低噪声，只关注金农信e付
- * 2. 同时扫描 rootInActiveWindow 和 event.source
- * 3. 寻找金额相关节点
+ * 金农e信付正式收款识别服务
+ * Commit 5:
+ * 读取固定金额节点 text_pay_money
+ * +0.01元 -> 0.01
+ * TTS: 安徽农金收款0.01元
  */
 class JinNongProbeAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TARGET_PACKAGE = "com.sunyard.arcu2b"
-        private const val TAG = "【金农节点】"
-        private val KEYWORDS = listOf(
-            "元", "￥", "¥", "收款", "到账", "成功", "金额"
-        )
+        private const val MONEY_NODE_ID = "com.sunyard.arcu2b:id/text_pay_money"
     }
 
-    private var lastLogText = ""
-    private var lastLogTime = 0L
+    private var tts: TextToSpeech? = null
+    private var lastAmount = ""
+    private var lastSpeakTime = 0L
 
     override fun onServiceConnected() {
-        LogManager.addLog(
-            "【金农探针】",
-            "事件源分析服务已连接"
-        )
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.CHINESE
+            }
+        }
+        LogManager.addLog("【金农】", "正式收款识别服务已连接")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-
-        val pkg = event.packageName?.toString() ?: return
-        if (pkg != TARGET_PACKAGE) return
-
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED
-        ) {
-            return
-        }
-
-        LogManager.addLog(
-            "【金农事件】",
-            "type=${event.eventType}, class=${event.className}"
-        )
+        if (event.packageName?.toString() != TARGET_PACKAGE) return
 
         try {
-            event.source?.let {
-                scanNode(it, 0, "source")
-            }
+            findMoneyNode(rootInActiveWindow)?.let { raw ->
+                val amount = parseAmount(raw) ?: return
+                val now = System.currentTimeMillis()
 
-            rootInActiveWindow?.let {
-                scanNode(it, 0, "root")
+                if (amount == lastAmount && now - lastSpeakTime < 5000) return
+
+                lastAmount = amount
+                lastSpeakTime = now
+
+                val text = "安徽农金收款${amount}元"
+                LogManager.addLog("【金农收款】", text)
+                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jinnong_payment")
             }
         } catch (e: Exception) {
-            LogManager.addLog(
-                "【A11Y异常】",
-                e.message ?: "unknown"
-            )
+            LogManager.addLog("【金农异常】", e.message ?: "unknown")
         }
     }
 
-    private fun scanNode(node: AccessibilityNodeInfo, depth: Int, from: String) {
-        if (depth > 6) return
+    private fun findMoneyNode(node: AccessibilityNodeInfo?): String? {
+        if (node == null) return null
 
-        val text = node.text?.toString()?.trim().orEmpty()
-        val desc = node.contentDescription?.toString()?.trim().orEmpty()
-        val id = node.viewIdResourceName.orEmpty()
-
-        val content = listOf(text, desc, id)
-            .filter { it.isNotEmpty() }
-            .joinToString(" | ")
-
-        if (content.isNotEmpty() && KEYWORDS.any { content.contains(it) }) {
-            val now = System.currentTimeMillis()
-            if (content != lastLogText || now - lastLogTime > 5000) {
-                lastLogText = content
-                lastLogTime = now
-
-                LogManager.addLog(
-                    TAG,
-                    """
-                    from=$from
-                    class=${node.className}
-                    text=$text
-                    desc=$desc
-                    id=$id
-                    """.trimIndent()
-                )
-            }
+        if (node.viewIdResourceName == MONEY_NODE_ID) {
+            return node.text?.toString()
         }
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let {
-                scanNode(it, depth + 1, from)
-            }
+            val result = findMoneyNode(node.getChild(i))
+            if (result != null) return result
         }
+        return null
+    }
+
+    private fun parseAmount(text: String): String? {
+        val match = Regex("[0-9]+(\\.[0-9]+)?").find(text) ?: return null
+        return match.value
     }
 
     override fun onInterrupt() {
-        LogManager.addLog(
-            "【金农探针】",
-            "服务中断"
-        )
+        LogManager.addLog("【金农】", "服务中断")
+    }
+
+    override fun onDestroy() {
+        tts?.shutdown()
+        super.onDestroy()
     }
 }
