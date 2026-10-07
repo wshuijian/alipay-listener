@@ -5,11 +5,12 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * 金农e信付页面读取探针 - 第二阶段节点分析版
+ * 金农e信付页面读取探针 - 第三阶段事件源分析版
  *
  * 目标：
- * 1. 降低日志噪音，只关注金农信e付
- * 2. 扫描Accessibility节点，寻找金额文本
+ * 1. 保持低噪声，只关注金农信e付
+ * 2. 同时扫描 rootInActiveWindow 和 event.source
+ * 3. 寻找金额相关节点
  */
 class JinNongProbeAccessibilityService : AccessibilityService() {
 
@@ -27,7 +28,7 @@ class JinNongProbeAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         LogManager.addLog(
             "【金农探针】",
-            "节点分析服务已连接"
+            "事件源分析服务已连接"
         )
     }
 
@@ -44,9 +45,18 @@ class JinNongProbeAccessibilityService : AccessibilityService() {
             return
         }
 
+        LogManager.addLog(
+            "【金农事件】",
+            "type=${event.eventType}, class=${event.className}"
+        )
+
         try {
+            event.source?.let {
+                scanNode(it, 0, "source")
+            }
+
             rootInActiveWindow?.let {
-                scanNode(it, 0)
+                scanNode(it, 0, "root")
             }
         } catch (e: Exception) {
             LogManager.addLog(
@@ -56,7 +66,7 @@ class JinNongProbeAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun scanNode(node: AccessibilityNodeInfo, depth: Int) {
+    private fun scanNode(node: AccessibilityNodeInfo, depth: Int, from: String) {
         if (depth > 6) return
 
         val text = node.text?.toString()?.trim().orEmpty()
@@ -76,6 +86,7 @@ class JinNongProbeAccessibilityService : AccessibilityService() {
                 LogManager.addLog(
                     TAG,
                     """
+                    from=$from
                     class=${node.className}
                     text=$text
                     desc=$desc
@@ -87,7 +98,7 @@ class JinNongProbeAccessibilityService : AccessibilityService() {
 
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let {
-                scanNode(it, depth + 1)
+                scanNode(it, depth + 1, from)
             }
         }
     }
