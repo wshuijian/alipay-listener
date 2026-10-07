@@ -17,6 +17,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         private const val TAG = "AlipayListener"
         private const val ALIPAY_PACKAGE = "com.eg.android.AlipayGphone"
         private const val WECHAT_PACKAGE = "com.tencent.mm"
+        private const val ICBC_PACKAGE = "com.icbc"
+        private const val WEIPAY_ASSISTANT_PACKAGE = "com.kuaiyin.micropayassistant"
         private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
         private const val DIAGNOSTICS_ONLY = false
@@ -26,6 +28,8 @@ class AlipayNotificationListener : NotificationListenerService() {
 
         private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
         private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
+        private val ICBC_AMOUNT_PATTERN = Pattern.compile("收入.*?([\\d]+\\.?[\\d]*)元")
+        private val WEIPAY_ASSISTANT_AMOUNT_PATTERN = Pattern.compile("微邮付收款([\\d]+\\.?[\\d]*)元")
     }
 
     override fun onListenerConnected() {
@@ -225,6 +229,24 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 微信", "金额:¥$amount 通知类型=${if(isNewPost) "POST" else "UPDATE"}")
                     MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$cleanText", source = "WECHAT")
+                }
+                ICBC_PACKAGE -> {
+                    // 工商银行动账通知解析
+                    if (title != "动账通知" || !text.contains("收入")) return
+                    val matcher = ICBC_AMOUNT_PATTERN.matcher(text)
+                    if (!matcher.find()) return
+                    val amount = matcher.group(1)
+                    LogManager.addLog("✅ 工商银行", "收入金额:¥$amount")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "ICBC|$text", source = "ICBC")
+                }
+                WEIPAY_ASSISTANT_PACKAGE -> {
+                    // 邮付助理APP本地通知解析
+                    if (title != "邮付小助手") return
+                    val matcher = WEIPAY_ASSISTANT_AMOUNT_PATTERN.matcher(text)
+                    if (!matcher.find()) return
+                    val amount = matcher.group(1)
+                    LogManager.addLog("✅ 邮付助理", "收款金额:¥$amount")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "WEIPAY_ASSISTANT|$text", source = "WEIPAY_ASSISTANT")
                 }
             }
         } catch (e: Exception) {
