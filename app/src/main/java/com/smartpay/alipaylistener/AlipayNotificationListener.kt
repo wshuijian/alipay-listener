@@ -212,6 +212,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 支付宝", "金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = "ALIPAY|$title", source = "ALIPAY")
+                    return // 命中支付宝规则，立刻退出，不进入通用规则
                 }
                 WECHAT_PACKAGE -> {
                     // 检测到邮付小助手收款通知，不管是POST还是UPDATE（微信聚合通知）都触发bank_trigger
@@ -233,6 +234,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 微信", "金额:¥$amount 通知类型=${if(isNewPost) "POST" else "UPDATE"}")
                     MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$cleanText", source = "WECHAT")
+                    return // 命中微信收款规则，立刻退出，不进入通用规则
                 }
                 ICBC_PACKAGE -> {
                     // 工商银行动账通知解析
@@ -242,6 +244,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 工商银行", "收入金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = "ICBC|$text", source = "ICBC")
+                    return // 命中工商银行规则，立刻退出，不进入通用规则
                 }
                 WEIPAY_ASSISTANT_PACKAGE -> {
                     // 邮付助理APP本地通知解析
@@ -251,6 +254,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 邮付助理", "收款金额:¥$amount")
                     MqttClientManager.sendPayment(amount = amount, rawText = "WEIPAY_ASSISTANT|$text", source = "WEIPAY_ASSISTANT")
+                    return // 命中邮付助理规则，立刻退出，不进入通用规则
                 }
             }
 

@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private lateinit var tvSelectedDate: TextView
     private var tts: TextToSpeech? = null
     private var ttsEnabled = true // 默认开启软件TTS播报
+    private lateinit var cbTtsSwitch: android.widget.CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,8 +76,17 @@ class MainActivity : Activity() {
         topActions = findViewById(R.id.top_actions)
         etPairCode = findViewById(R.id.et_pair_code)
         tvLog = findViewById(R.id.tv_log)
+        // 读取TTS开关设置，默认开启
+        ttsEnabled = getSharedPreferences(prefsName, Context.MODE_PRIVATE).getBoolean("tts_enabled", true)
         // 店铺名改为长风照相馆
         findViewById<TextView>(R.id.tv_shop_name).text = "长风照相馆"
+        // TTS开关绑定
+        cbTtsSwitch = findViewById(R.id.cb_tts_switch)
+        cbTtsSwitch.isChecked = ttsEnabled
+        cbTtsSwitch.setOnCheckedChangeListener { _, isChecked ->
+            ttsEnabled = isChecked
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("tts_enabled", isChecked).apply()
+        }
         // 日期切换控件
         tvSelectedDate = findViewById(R.id.tv_selected_date)
         findViewById<TextView>(R.id.btn_prev_day).setOnClickListener {
