@@ -31,7 +31,11 @@ class MainActivity : Activity() {
     private val prefsName = "alipay_listener_prefs"
     private val paymentsKey = "recent_payments"
     private val handler = Handler(Looper.getMainLooper())
-    private val recentPayments = mutableListOf<Payment>()
+    private val allPayments = mutableListOf<Payment>() // 完整保存所有历史订单，不再截断10条
+    private val filteredPayments = mutableListOf<Payment>() // 当前选中日期显示的订单
+    private val selectedDay = Calendar.getInstance() // 当前选中查看的日期，默认今天
+    private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private lateinit var tvSelectedDate: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +54,7 @@ class MainActivity : Activity() {
 
     private fun bindViews() {
         listView = findViewById(R.id.lv_payments)
-        adapter = PaymentAdapter(this, recentPayments)
+        adapter = PaymentAdapter(this, filteredPayments)
         listView.adapter = adapter
         tvStatus = findViewById(R.id.tv_status_top)
         tvClock = findViewById(R.id.tv_clock)
@@ -61,6 +65,22 @@ class MainActivity : Activity() {
         topActions = findViewById(R.id.top_actions)
         etPairCode = findViewById(R.id.et_pair_code)
         tvLog = findViewById(R.id.tv_log)
+        // 店铺名改为长风照相馆
+        findViewById<TextView>(R.id.tv_shop_name).text = "长风照相馆"
+        // 日期切换控件
+        tvSelectedDate = findViewById(R.id.tv_selected_date)
+        findViewById<TextView>(R.id.btn_prev_day).setOnClickListener {
+            selectedDay.add(Calendar.DAY_OF_MONTH, -1)
+            refreshDayList()
+        }
+        findViewById<TextView>(R.id.btn_next_day).setOnClickListener {
+            val today = Calendar.getInstance()
+            if (selectedDay.before(today) || selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)) {
+                selectedDay.add(Calendar.DAY_OF_MONTH, 1)
+                refreshDayList()
+            }
+        }
         etPairCode.setText(getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString("pair_code", ""))
         findViewById<TextView>(R.id.tab_data).setOnClickListener { showPanel(0) }
         findViewById<TextView>(R.id.tab_device).setOnClickListener { showPanel(1) }
@@ -102,14 +122,33 @@ class MainActivity : Activity() {
 
     private fun addPayment(amount: String, channel: String) {
         if (amount.trim().isEmpty()) return
-        recentPayments.add(0, Payment(amount.trim(), if (channel.isEmpty()) "收款" else channel, System.currentTimeMillis()))
-        while (recentPayments.size > 10) recentPayments.removeAt(recentPayments.lastIndex)
+        val newPayment = Payment(amount.trim(), if (channel.isEmpty()) "收款" else channel, System.currentTimeMillis())
+        allPayments.add(0, newPayment)
         savePayments()
+        // 如果当前选中的是今天，刷新列表
+        val today = Calendar.getInstance()
+        if (selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+            selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)) {
+            refreshDayList()
+        }
+    }
+
+    private fun refreshDayList() {
+        // 按选中日期过滤当天订单，按时间倒序
+        filteredPayments.clear()
+        val dayStr = dayFormat.format(selectedDay.time)
+        allPayments.forEach { p ->
+            val pDay = dayFormat.format(Date(p.time))
+            if (pDay == dayStr) filteredPayments.add(p)
+        }
+        // 按时间倒序，最新的排前面
+        filteredPayments.sortByDescending { it.time }
+        tvSelectedDate.text = dayStr
         adapter.notifyDataSetChanged()
     }
 
     private fun savePayments() {
-        val value = recentPayments.joinToString(";") { it.time.toString() + "|" + it.amount + "|" + it.channel }
+        val value = allPayments.joinToString(";") { it.time.toString() + "|" + it.amount + "|" + it.channel }
         getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putString(paymentsKey, value).apply()
     }
 
@@ -118,9 +157,10 @@ class MainActivity : Activity() {
         if (value.isEmpty()) return
         value.split(";").forEach {
             val p = it.split("|")
-            if (p.size == 3) recentPayments.add(Payment(p[1], p[2], p[0].toLongOrNull() ?: System.currentTimeMillis()))
+            if (p.size == 3) allPayments.add(Payment(p[1], p[2], p[0].toLongOrNull() ?: System.currentTimeMillis()))
         }
-        while (recentPayments.size > 10) recentPayments.removeAt(recentPayments.lastIndex)
+        // 加载完成后刷新今天的列表
+        refreshDayList()
     }
 
     private fun updateStatus() {
@@ -167,7 +207,7 @@ class MainActivity : Activity() {
 
     data class Payment(val amount: String, val channel: String, val time: Long)
 
-    private class PaymentAdapter(private val context: Context, private val items: List<Payment>) : BaseAdapter() {
+    private inner class PaymentAdapter(private val context: Context, private val items: List<Payment>) : BaseAdapter() {
         override fun getCount() = items.size
         override fun getItem(position: Int) = items[position]
         override fun getItemId(position: Int) = position.toLong()
@@ -175,8 +215,28 @@ class MainActivity : Activity() {
             val v = convertView ?: android.view.LayoutInflater.from(context).inflate(R.layout.item_payment, parent, false)
             val item = items[position]
             v.findViewById<TextView>(R.id.tv_payment_amount).text = "¥" + item.amount
-            v.findViewById<TextView>(R.id.tv_payment_channel).text = item.channel
+            val channelTv = v.findViewById<TextView>(R.id.tv_payment_channel)
+            channelTv.text = item.channel
             v.findViewById<TextView>(R.id.tv_payment_time).text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
+            // 渠道颜色：微信绿、支付宝蓝、其他银行红
+            when {
+                item.channel.contains("微信") -> channelTv.setTextColor(0xFF07C160.toInt())
+                item.channel.contains("支付宝") -> channelTv.setTextColor(0xFF1677FF.toInt())
+                else -> channelTv.setTextColor(0xFFF43F5E.toInt())
+            }
+            // 最新一笔高亮：只有当前选中是今天，且是列表第一笔时高亮
+            val today = Calendar.getInstance()
+            val isToday = selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                    selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+            if (position == 0 && isToday) {
+                v.setBackgroundColor(0x331677FF.toInt()) // 蓝色半透明高亮背景
+                v.findViewById<TextView>(R.id.tv_payment_amount).setTextColor(android.graphics.Color.WHITE)
+                v.findViewById<TextView>(R.id.tv_payment_amount).textSize = 28f
+            } else {
+                v.setBackgroundColor(0x00000000) // 透明背景
+                v.findViewById<TextView>(R.id.tv_payment_amount).setTextColor(android.graphics.Color.WHITE)
+                v.findViewById<TextView>(R.id.tv_payment_amount).textSize = 22f
+            }
             return v
         }
     }

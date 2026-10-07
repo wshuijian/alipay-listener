@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="#0B1015">
     <LinearLayout android:layout_width="match_parent" android:layout_height="58dp" android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="10dp">
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="星辰便利店" android:textColor="#F5F7FA" android:textSize="18sp" android:textStyle="bold"/>
+            <TextView android:id="@+id/tv_shop_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="长风照相馆" android:textColor="#F5F7FA" android:textSize="18sp" android:textStyle="bold"/>
             <TextView android:id="@+id/tv_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="---- -- --  --:--:--" android:textColor="#7F8B99" android:textSize="11sp"/>
         </LinearLayout>
         <LinearLayout android:id="@+id/top_actions" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical">
@@ -13,7 +13,13 @@
     </LinearLayout>
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <LinearLayout android:id="@+id/panel_data" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
-            <ListView android:id="@+id/lv_payments" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingStart="10dp" android:paddingEnd="10dp" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:clipToPadding="false"/>
+            <!-- 日期切换栏 -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:padding="8dp" android:background="#151C24">
+                <TextView android:id="@+id/btn_prev_day" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="‹" android:textColor="#F5F7FA" android:textSize="24sp" android:clickable="true"/>
+                <TextView android:id="@+id/tv_selected_date" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="2026-10-07" android:textColor="#F5F7FA" android:textSize="16sp"/>
+                <TextView android:id="@+id/btn_next_day" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="›" android:textColor="#F5F7FA" android:textSize="24sp" android:clickable="true"/>
+            </LinearLayout>
+            <ListView android:id="@+id/lv_payments" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="8dp" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:clipToPadding="false"/>
         </LinearLayout>
         <ScrollView android:id="@+id/panel_device" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:padding="20dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
