@@ -30,6 +30,10 @@ class AlipayNotificationListener : NotificationListenerService() {
         private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
         private val ICBC_AMOUNT_PATTERN = Pattern.compile("收入.*?([\\d]+\\.?[\\d]*)元")
         private val WEIPAY_ASSISTANT_AMOUNT_PATTERN = Pattern.compile("微邮付收款([\\d]+\\.?[\\d]*)元")
+        // 通用银行收款规则配置
+        private val GENERIC_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:\\.[0-9]{1,2})?)元")
+        private val POSITIVE_KEYWORDS = listOf("收入", "收款到账", "收款", "入账", "存入")
+        private val NEGATIVE_KEYWORDS = listOf("支出", "消费", "扣费", "还款", "转出", "转账出", "付款", "缴费", "退款", "优惠券", "红包", "奖励")
     }
 
     override fun onListenerConnected() {
@@ -249,6 +253,32 @@ class AlipayNotificationListener : NotificationListenerService() {
                     MqttClientManager.sendPayment(amount = amount, rawText = "WEIPAY_ASSISTANT|$text", source = "WEIPAY_ASSISTANT")
                 }
             }
+
+            // ===== 通用银行/收款通知规则（所有专用规则走完后才执行） =====
+            // 1. 先检查负向关键词，命中直接跳过
+            for (neg in NEGATIVE_KEYWORDS) {
+                if (text.contains(neg)) {
+                    return
+                }
+            }
+            // 2. 检查是否包含正向收款关键词
+            var hasPositive = false
+            for (pos in POSITIVE_KEYWORDS) {
+                if (text.contains(pos)) {
+                    hasPositive = true
+                    break
+                }
+            }
+            if (!hasPositive) return
+            // 3. 提取金额
+            val genericMatcher = GENERIC_AMOUNT_PATTERN.matcher(text)
+            if (!genericMatcher.find()) return
+            val amount = genericMatcher.group(1)
+            // 4. 渠道名优先用通知标题，标题空就用包名兜底
+            val channelName = title.ifEmpty { packageName }
+            LogManager.addLog("✅ 通用银行", "[$channelName] 识别到收款金额:¥$amount 原文: $text")
+            MqttClientManager.sendPayment(amount = amount, rawText = "GENERIC_BANK|$text", source = channelName)
+            // ===== 通用规则结束 =====
         } catch (e: Exception) {
             LogManager.addLog("❌ 异常", e.message ?: "未知错误")
         }
