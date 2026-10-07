@@ -2,76 +2,68 @@ package com.smartpay.alipaylistener
 
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 
+/**
+ * 金农e信付页面读取探针 - 第一阶段裸监听版
+ *
+ * 目的：先确认 Android Accessibility Framework 是否有事件进入。
+ * 暂时去掉包名过滤和节点递归，避免因为过滤条件导致完全无日志。
+ */
 class JinNongProbeAccessibilityService : AccessibilityService() {
-    // 模糊匹配金农相关包名，不写死具体包名
-    private val TARGET_KEYWORDS = listOf(
-        "金农",
-        "e信付",
-        "jnn",
-        "农金",
-        "ahrcbank"
-    )
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        event ?: return
-        val pkg = event.packageName?.toString() ?: return
-        // 模糊匹配包名，命中目标关键词才打印
-        var isTarget = false
-        for (kw in TARGET_KEYWORDS) {
-            if (pkg.contains(kw, ignoreCase = true)) {
-                isTarget = true
-                break
-            }
-        }
-        if (!isTarget) return
-
-        // 打印完整事件基础信息
-        val eventTypeStr = when(event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "窗口切换"
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "内容变化"
-            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> "文本变化"
-            AccessibilityEvent.TYPE_VIEW_SCROLLED -> "页面滚动"
-            AccessibilityEvent.TYPE_VIEW_CLICKED -> "点击事件"
-            else -> "其他事件:${event.eventType}"
-        }
-        LogManager.addLog("【金农探针2.0】", "包名:$pkg 事件类型:$eventTypeStr 事件文本:${event.text}")
-
-        // 获取源节点，递归遍历打印
-        val sourceNode = event.source ?: rootInActiveWindow ?: return
-        traverseNode(sourceNode, 0)
+    override fun onServiceConnected() {
+        LogManager.addLog(
+            "【金农探针】",
+            "无障碍服务已连接"
+        )
     }
 
-    private fun traverseNode(node: AccessibilityNodeInfo?, depth: Int) {
-        node ?: return
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+
+        val pkg = event.packageName?.toString() ?: "null"
+        val cls = event.className?.toString() ?: "null"
+
+        LogManager.addLog(
+            "【A11Y原始事件】",
+            """
+            package=$pkg
+            type=${event.eventType}
+            class=$cls
+            text=${event.text}
+            """.trimIndent()
+        )
+
         try {
-            val className = node.className?.toString() ?: ""
-            val text = node.text?.toString()?.trim() ?: ""
-            val desc = node.contentDescription?.toString()?.trim() ?: ""
-            val viewId = node.viewIdResourceName ?: ""
-            val childCount = node.childCount
+            val root = rootInActiveWindow
 
-            // 检测WebView
-            if (className.contains("WebView")) {
-                LogManager.addLog("【发现WebView】", "包名:${packageName} 类名:$className")
-            }
+            LogManager.addLog(
+                "【A11Y ROOT】",
+                """
+                rootClass=${root?.className}
+                childCount=${root?.childCount}
+                rootText=${root?.text}
+                """.trimIndent()
+            )
 
-            // 只打印有实际内容的节点
-            if (text.isNotEmpty() || desc.isNotEmpty()) {
-                LogManager.addLog("【金农探针2.0】", "类:$className ID:$viewId 子节点数:$childCount 文本:[$text] 描述:[$desc]")
-            }
-
-            // 递归遍历子节点
-            for (i in 0 until childCount) {
-                traverseNode(node.getChild(i), depth + 1)
+            if (root?.className?.toString()?.contains("WebView", true) == true) {
+                LogManager.addLog(
+                    "【发现WebView】",
+                    "class=${root.className}"
+                )
             }
         } catch (e: Exception) {
-            // 节点访问异常直接跳过，不崩溃
+            LogManager.addLog(
+                "【A11Y异常】",
+                e.message ?: "unknown"
+            )
         }
     }
 
     override fun onInterrupt() {
-        // 调试服务不需要处理中断
+        LogManager.addLog(
+            "【金农探针】",
+            "服务中断"
+        )
     }
 }
