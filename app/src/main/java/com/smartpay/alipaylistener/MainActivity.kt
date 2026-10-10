@@ -1,10 +1,12 @@
 package com.smartpay.alipaylistener
 
 import android.app.Activity
+import android.app.DatePickerDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,34 +16,54 @@ import android.view.View
 import android.view.Window
 import android.widget.*
 import android.speech.tts.TextToSpeech
-import java.util.Locale
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
-    private lateinit var listView: ListView
-    private lateinit var adapter: PaymentAdapter
-    private lateinit var tvStatus: TextView
+    private lateinit var homeListView: AbsListView
+    private lateinit var historyListView: AbsListView
+    private lateinit var homeAdapter: PaymentAdapter
+    private lateinit var historyAdapter: PaymentAdapter
+    private lateinit var tvStatusTop: TextView
     private lateinit var tvClock: TextView
+    private lateinit var tvShopName: TextView
+    private lateinit var tvHomeDate: TextView
+    private lateinit var tvDataTotal: TextView
+    private lateinit var tvDataCount: TextView
+    private lateinit var tvHistoryPeriod: TextView
+    private lateinit var tvHistoryEmpty: TextView
+    private lateinit var panelHome: View
     private lateinit var panelData: View
     private lateinit var panelDevice: View
     private lateinit var panelSettings: View
     private lateinit var bottomBar: View
     private lateinit var topActions: View
     private lateinit var etPairCode: EditText
+    private lateinit var etShopName: EditText
     private lateinit var tvLog: TextView
+    private lateinit var cbTtsSwitch: CheckBox
+    private lateinit var rgColumns: RadioGroup
+
     private val prefsName = "alipay_listener_prefs"
     private val paymentsKey = "recent_payments"
     private val handler = Handler(Looper.getMainLooper())
-    private val allPayments = mutableListOf<Payment>() // 完整保存所有历史订单，不再截断10条
-    private val filteredPayments = mutableListOf<Payment>() // 当前选中日期显示的订单
-    private val selectedDay = Calendar.getInstance() // 当前选中查看的日期，默认今天
+    private val allPayments = mutableListOf<Payment>()
+    private val recentPayments = mutableListOf<Payment>()
+    private val historyPayments = mutableListOf<Payment>()
     private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val dateLabelFormat = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
-    private lateinit var tvSelectedDate: TextView
+    private val shortDateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+    private var displayColumns = 5
+    private var historyRange = HistoryRange.TODAY
+    private val customHistoryDate = Calendar.getInstance()
     private var tts: TextToSpeech? = null
-    private var ttsEnabled = true // 默认开启软件TTS播报
-    private lateinit var cbTtsSwitch: android.widget.CheckBox
+    private var ttsEnabled = true
+
+    private enum class HistoryRange { TODAY, YESTERDAY, LAST_7_DAYS, CUSTOM }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,73 +75,62 @@ class MainActivity : Activity() {
         showPanel(0)
         updateStatus()
         startClock()
+
         LogManager.setLogCallback { log -> runOnUiThread { tvLog.append(log + "\n") } }
-        // 初始化本地TTS播报
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.CHINESE
             }
         }
-        MqttClientManager.setPaymentCallback { amount, channel -> runOnUiThread { addPayment(amount, channel) } }
+        MqttClientManager.setPaymentCallback { amount, channel ->
+            runOnUiThread { addPayment(amount, channel) }
+        }
         MqttClientManager.setStatusCallback { _, _ -> runOnUiThread { updateStatus() } }
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateStatus()
+    }
+
     private fun bindViews() {
-        listView = findViewById(R.id.lv_payments)
-        adapter = PaymentAdapter(this, filteredPayments)
-        listView.adapter = adapter
-        tvStatus = findViewById(R.id.tv_status_top)
+        homeListView = findViewById(R.id.lv_payments)
+        historyListView = findViewById(R.id.lv_history_payments)
+        homeAdapter = PaymentAdapter(recentPayments, true, R.layout.item_payment)
+        historyAdapter = PaymentAdapter(historyPayments, false, R.layout.item_payment_history)
+        homeListView.adapter = homeAdapter
+        historyListView.adapter = historyAdapter
+
+        tvStatusTop = findViewById(R.id.tv_status_top)
         tvClock = findViewById(R.id.tv_clock)
+        tvShopName = findViewById(R.id.tv_shop_name)
+        tvHomeDate = findViewById(R.id.tv_home_date)
+        tvDataTotal = findViewById(R.id.tv_data_total)
+        tvDataCount = findViewById(R.id.tv_data_count)
+        tvHistoryPeriod = findViewById(R.id.tv_history_period)
+        tvHistoryEmpty = findViewById(R.id.tv_history_empty)
+        panelHome = findViewById(R.id.panel_home)
         panelData = findViewById(R.id.panel_data)
         panelDevice = findViewById(R.id.panel_device)
         panelSettings = findViewById(R.id.panel_settings)
         bottomBar = findViewById(R.id.bottom_bar)
         topActions = findViewById(R.id.top_actions)
         etPairCode = findViewById(R.id.et_pair_code)
+        etShopName = findViewById(R.id.et_shop_name)
         tvLog = findViewById(R.id.tv_log)
-        // 读取TTS开关设置，默认开启
-        ttsEnabled = getSharedPreferences(prefsName, Context.MODE_PRIVATE).getBoolean("tts_enabled", true)
-        // 店铺名改为长风照相馆
-        findViewById<TextView>(R.id.tv_shop_name).text = "长风照相馆"
-        // TTS开关绑定
         cbTtsSwitch = findViewById(R.id.cb_tts_switch)
-        cbTtsSwitch.isChecked = ttsEnabled
-        cbTtsSwitch.setOnCheckedChangeListener { _, isChecked ->
-            ttsEnabled = isChecked
-            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("tts_enabled", isChecked).apply()
-        }
-        // 日期切换控件
-        tvSelectedDate = findViewById(R.id.tv_selected_date)
-        findViewById<TextView>(R.id.btn_prev_day).setOnClickListener {
-            selectedDay.add(Calendar.DAY_OF_MONTH, -1)
-            refreshDayList()
-        }
-        findViewById<TextView>(R.id.btn_next_day).setOnClickListener {
-            val selectedDate = dayFormat.format(selectedDay.time)
-            val todayDate = dayFormat.format(Calendar.getInstance().time)
-            // 日期按 yyyy-MM-dd 比较，今天不允许继续翻到未来日期。
-            if (selectedDate < todayDate) {
-                selectedDay.add(Calendar.DAY_OF_MONTH, 1)
-                refreshDayList()
-            }
-        }
-        etPairCode.setText(getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString("pair_code", ""))
-        findViewById<TextView>(R.id.tab_data).setOnClickListener { showPanel(0) }
-        findViewById<TextView>(R.id.tab_device).setOnClickListener { showPanel(1) }
-        findViewById<TextView>(R.id.tab_settings).setOnClickListener { showPanel(2) }
-        // 复制全部日志到剪贴板
-        findViewById<Button>(R.id.btn_copy_log).setOnClickListener {
-            val allLogs = LogManager.getAllLogs().joinToString("\n")
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("收款日志", allLogs))
-            android.widget.Toast.makeText(this, "日志已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
+        rgColumns = findViewById(R.id.rg_columns)
 
-    private fun showPanel(index: Int) {
-        panelData.visibility = if (index == 0) View.VISIBLE else View.GONE
-        panelDevice.visibility = if (index == 1) View.VISIBLE else View.GONE
-        panelSettings.visibility = if (index == 2) View.VISIBLE else View.GONE
+        val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        displayColumns = prefs.getInt("display_columns", 5).coerceIn(3, 6)
+        ttsEnabled = prefs.getBoolean("tts_enabled", true)
+        tvShopName.text = prefs.getString("shop_name", "长风照相馆") ?: "长风照相馆"
+        etShopName.setText(tvShopName.text)
+        etPairCode.setText(prefs.getString("pair_code", ""))
+        cbTtsSwitch.isChecked = ttsEnabled
+        rgColumns.check(columnRadioId(displayColumns))
+        applyDisplayDensity()
+        updateHomeDate()
     }
 
     private fun setupActions() {
@@ -128,18 +139,106 @@ class MainActivity : Activity() {
             requestedOrientation = if (resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE)
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
+        findViewById<ImageButton>(R.id.btn_refresh_status).setOnClickListener {
+            updateStatus()
+            Toast.makeText(this, "状态已刷新", Toast.LENGTH_SHORT).show()
+        }
+
         findViewById<Button>(R.id.btn_start).setOnClickListener {
             val code = etPairCode.text.toString().trim()
-            if (code.length != 6) { Toast.makeText(this, "请输入6位配对码", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (code.length != 6) {
+                Toast.makeText(this, "请输入6位配对码", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putString("pair_code", code).apply()
-            val i = Intent(this, KeepAliveService::class.java).putExtra("pair_code", code)
-            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i)
-            Toast.makeText(this, "监听服务已启动", Toast.LENGTH_SHORT).show()
+            val intent = Intent(this, KeepAliveService::class.java).putExtra("pair_code", code)
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            Toast.makeText(this, "监听服务启动请求已发送", Toast.LENGTH_SHORT).show()
             updateStatus()
         }
         findViewById<Button>(R.id.btn_open_notification_access).setOnClickListener {
             startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
         }
+        findViewById<Button>(R.id.btn_save_shop_name).setOnClickListener {
+            val name = etShopName.text.toString().trim()
+            if (name.isEmpty()) {
+                Toast.makeText(this, "店铺名称不能为空", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putString("shop_name", name).apply()
+            tvShopName.text = name
+            Toast.makeText(this, "店铺名称已保存", Toast.LENGTH_SHORT).show()
+        }
+
+        cbTtsSwitch.setOnCheckedChangeListener { _, checked ->
+            ttsEnabled = checked
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("tts_enabled", checked).apply()
+        }
+        rgColumns.setOnCheckedChangeListener { _, checkedId ->
+            val columns = when (checkedId) {
+                R.id.rb_cols_3 -> 3
+                R.id.rb_cols_4 -> 4
+                R.id.rb_cols_5 -> 5
+                R.id.rb_cols_6 -> 6
+                else -> 5
+            }
+            if (columns != displayColumns) {
+                displayColumns = columns
+                getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putInt("display_columns", columns).apply()
+                applyDisplayDensity()
+            }
+        }
+
+        findViewById<TextView>(R.id.tab_home).setOnClickListener { showPanel(0) }
+        findViewById<TextView>(R.id.tab_data).setOnClickListener { showPanel(1) }
+        findViewById<TextView>(R.id.tab_device).setOnClickListener { showPanel(2) }
+        findViewById<TextView>(R.id.tab_settings).setOnClickListener { showPanel(3) }
+
+        findViewById<TextView>(R.id.btn_range_today).setOnClickListener { setHistoryRange(HistoryRange.TODAY) }
+        findViewById<TextView>(R.id.btn_range_yesterday).setOnClickListener { setHistoryRange(HistoryRange.YESTERDAY) }
+        findViewById<TextView>(R.id.btn_range_7days).setOnClickListener { setHistoryRange(HistoryRange.LAST_7_DAYS) }
+        findViewById<TextView>(R.id.btn_range_custom).setOnClickListener { showCustomDatePicker() }
+
+        findViewById<Button>(R.id.btn_copy_log).setOnClickListener {
+            val allLogs = LogManager.getAllLogs().joinToString("\n")
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("收款日志", allLogs))
+            Toast.makeText(this, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showPanel(index: Int) {
+        panelHome.visibility = if (index == 0) View.VISIBLE else View.GONE
+        panelData.visibility = if (index == 1) View.VISIBLE else View.GONE
+        panelDevice.visibility = if (index == 2) View.VISIBLE else View.GONE
+        panelSettings.visibility = if (index == 3) View.VISIBLE else View.GONE
+
+        val tabs = listOf(
+            findViewById<TextView>(R.id.tab_home),
+            findViewById<TextView>(R.id.tab_data),
+            findViewById<TextView>(R.id.tab_device),
+            findViewById<TextView>(R.id.tab_settings)
+        )
+        tabs.forEachIndexed { i, tab ->
+            tab.setTextColor(if (i == index) 0xFF00C98D.toInt() else 0xFF8392A3.toInt())
+            tab.alpha = if (i == index) 1f else 0.82f
+        }
+        if (index == 1) refreshHistoryList()
+        updateStatus()
+    }
+
+    private fun applyDisplayDensity() {
+        val grid = homeListView as? GridView
+        if (grid != null) grid.numColumns = displayColumns
+        homeAdapter.notifyDataSetChanged()
+        historyAdapter.notifyDataSetChanged()
+    }
+
+    private fun columnRadioId(columns: Int): Int = when (columns) {
+        3 -> R.id.rb_cols_3
+        4 -> R.id.rb_cols_4
+        6 -> R.id.rb_cols_6
+        else -> R.id.rb_cols_5
     }
 
     private fun addPayment(amount: String, channel: String) {
@@ -150,43 +249,118 @@ class MainActivity : Activity() {
             channel.contains("支付宝") -> "支付宝"
             else -> channel
         }
-        val newPayment = Payment(amount.trim(), finalChannel, System.currentTimeMillis())
-        allPayments.add(0, newPayment)
+        allPayments.add(0, Payment(amount.trim(), finalChannel, System.currentTimeMillis()))
         savePayments()
-        // 如果当前选中的是今天，刷新列表
-        val today = Calendar.getInstance()
-        if (selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-            selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)) {
-            refreshDayList()
-        }
-        // 本地TTS播报
+        refreshHomeList()
+        refreshHistoryList()
         if (ttsEnabled) {
-            tts?.speak("${finalChannel}到账${amount}元", TextToSpeech.QUEUE_FLUSH, null, "payment_${System.currentTimeMillis()}")
+            tts?.speak(finalChannel + "到账" + amount + "元", TextToSpeech.QUEUE_FLUSH, null, "payment_" + System.currentTimeMillis())
         }
     }
 
-    private fun refreshDayList() {
-        // 按选中日期过滤当天订单，按时间倒序
-        filteredPayments.clear()
-        val dayStr = dayFormat.format(selectedDay.time)
-        allPayments.forEach { p ->
-            val pDay = dayFormat.format(Date(p.time))
-            if (pDay == dayStr) filteredPayments.add(p)
+    private fun refreshHomeList() {
+        recentPayments.clear()
+        recentPayments.addAll(allPayments.sortedByDescending { it.time }.take(100))
+        updateHomeDate()
+        homeAdapter.notifyDataSetChanged()
+    }
+
+    private fun updateHomeDate() {
+        tvHomeDate.text = "今天 · " + dateLabelFormat.format(Date())
+    }
+
+    private fun setHistoryRange(range: HistoryRange) {
+        historyRange = range
+        if (range == HistoryRange.CUSTOM) {
+            showCustomDatePicker()
+            return
         }
-        // 按时间倒序，最新的排前面
-        filteredPayments.sortByDescending { it.time }
-        val todayStr = dayFormat.format(Calendar.getInstance().time)
-        val isToday = dayStr == todayStr
-        tvSelectedDate.text = if (isToday) {
-            "今天 · ${dateLabelFormat.format(selectedDay.time)}"
-        } else {
-            dateLabelFormat.format(selectedDay.time)
+        refreshHistoryList()
+    }
+
+    private fun showCustomDatePicker() {
+        val initial = if (historyRange == HistoryRange.CUSTOM) customHistoryDate else Calendar.getInstance()
+        DatePickerDialog(
+            this,
+            { _, year, month, day ->
+                customHistoryDate.set(year, month, day, 0, 0, 0)
+                customHistoryDate.set(Calendar.MILLISECOND, 0)
+                historyRange = HistoryRange.CUSTOM
+                refreshHistoryList()
+            },
+            initial.get(Calendar.YEAR),
+            initial.get(Calendar.MONTH),
+            initial.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }
+
+    private fun dayStart(source: Calendar): Calendar {
+        return (source.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
-        findViewById<TextView>(R.id.btn_next_day).apply {
-            isEnabled = !isToday
-            alpha = if (isToday) 0.35f else 1.0f
+    }
+
+    private fun historyBounds(): Pair<Long, Long> {
+        val todayStart = dayStart(Calendar.getInstance())
+        val start = when (historyRange) {
+            HistoryRange.TODAY -> todayStart
+            HistoryRange.YESTERDAY -> (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+            HistoryRange.LAST_7_DAYS -> (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -6) }
+            HistoryRange.CUSTOM -> dayStart(customHistoryDate)
         }
-        adapter.notifyDataSetChanged()
+        val endExclusive = (start.clone() as Calendar).apply {
+            when (historyRange) {
+                HistoryRange.TODAY, HistoryRange.LAST_7_DAYS -> add(Calendar.DAY_OF_YEAR, 1)
+                HistoryRange.YESTERDAY, HistoryRange.CUSTOM -> add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+        return Pair(start.timeInMillis, endExclusive.timeInMillis)
+    }
+
+    private fun refreshHistoryList() {
+        val bounds = historyBounds()
+        historyPayments.clear()
+        historyPayments.addAll(
+            allPayments.filter { it.time >= bounds.first && it.time < bounds.second }.sortedByDescending { it.time }
+        )
+
+        tvHistoryPeriod.text = when (historyRange) {
+            HistoryRange.TODAY -> "今天 · " + dateLabelFormat.format(Date())
+            HistoryRange.YESTERDAY -> "昨天 · " + dateLabelFormat.format(Date(dayStart(Calendar.getInstance()).apply { add(Calendar.DAY_OF_YEAR, -1) }.timeInMillis))
+            HistoryRange.LAST_7_DAYS -> {
+                val startDate = Date(bounds.first)
+                val endDate = Date(bounds.second - 1)
+                "近7天 · " + shortDateFormat.format(startDate) + "—" + shortDateFormat.format(endDate)
+            }
+            HistoryRange.CUSTOM -> dateLabelFormat.format(customHistoryDate.time)
+        }
+
+        tvHistoryEmpty.visibility = if (historyPayments.isEmpty()) View.VISIBLE else View.GONE
+        val total = historyPayments.fold(BigDecimal.ZERO) { sum, payment ->
+            sum.add(payment.amount.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+        }.setScale(2, RoundingMode.HALF_UP)
+        tvDataTotal.text = "¥" + total.toPlainString()
+        tvDataCount.text = historyPayments.size.toString() + " 笔"
+        historyAdapter.notifyDataSetChanged()
+        updateRangeButtonStyles()
+    }
+
+    private fun updateRangeButtonStyles() {
+        val entries = listOf(
+            Pair(R.id.btn_range_today, HistoryRange.TODAY),
+            Pair(R.id.btn_range_yesterday, HistoryRange.YESTERDAY),
+            Pair(R.id.btn_range_7days, HistoryRange.LAST_7_DAYS),
+            Pair(R.id.btn_range_custom, HistoryRange.CUSTOM)
+        )
+        entries.forEach { (id, range) ->
+            val view = findViewById<TextView>(id)
+            val selected = historyRange == range
+            view.setBackgroundResource(if (selected) R.drawable.bg_filter_active else R.drawable.bg_filter_idle)
+            view.setTextColor(if (selected) 0xFF062019.toInt() else 0xFFD7E1EA.toInt())
+        }
     }
 
     private fun savePayments() {
@@ -195,22 +369,33 @@ class MainActivity : Activity() {
     }
 
     private fun loadPayments() {
-        val value = getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString(paymentsKey, "") ?: return
-        if (value.isEmpty()) return
-        value.split(";").forEach {
-            val p = it.split("|")
-            if (p.size == 3) allPayments.add(Payment(p[1], p[2], p[0].toLongOrNull() ?: System.currentTimeMillis()))
+        val value = getSharedPreferences(prefsName, Context.MODE_PRIVATE).getString(paymentsKey, "") ?: ""
+        if (value.isNotEmpty()) {
+            value.split(";").forEach {
+                val p = it.split("|")
+                if (p.size == 3) {
+                    allPayments.add(Payment(p[1], p[2], p[0].toLongOrNull() ?: System.currentTimeMillis()))
+                }
+            }
         }
-        // 加载完成后刷新今天的列表
-        refreshDayList()
+        allPayments.sortByDescending { it.time }
+        refreshHomeList()
+        refreshHistoryList()
     }
 
     private fun updateStatus() {
-        val paired = MqttClientManager.isConnected() && MqttClientManager.isPaired()
-        tvStatus.text = if (paired) "已连接" else "未连接"
-        tvStatus.setTextColor(if (paired) 0xFF62D88F.toInt() else 0xFFF2B84B.toInt())
-        findViewById<TextView>(R.id.tv_device_status).text = if (paired) "MQTT：已连接并已配对" else "MQTT：等待连接或配对"
-        findViewById<TextView>(R.id.tv_notification_status).text = if (isNotificationServiceEnabled()) "通知监听：已开启" else "通知监听：未开启"
+        val connected = MqttClientManager.isConnected()
+        val paired = connected && MqttClientManager.isPaired()
+        tvStatusTop.text = if (paired) "● 已连接" else if (connected) "● 未配对" else "● 未连接"
+        tvStatusTop.setTextColor(if (paired) 0xFF00C98D.toInt() else 0xFFF2B84B.toInt())
+        findViewById<TextView>(R.id.tv_device_status).text =
+            if (connected) "MQTT：已连接" else "MQTT：未连接"
+        findViewById<TextView>(R.id.tv_pair_status).text =
+            if (paired) "设备配对：已配对" else "设备配对：等待配对"
+        findViewById<TextView>(R.id.tv_notification_status).text =
+            if (isNotificationServiceEnabled()) "通知监听权限：已开启" else "通知监听权限：未开启"
+        findViewById<TextView>(R.id.tv_service_status).text =
+            if (paired && isNotificationServiceEnabled()) "设备已具备基本收款监听条件" else "请检查连接、配对码和通知监听权限"
     }
 
     private fun isNotificationServiceEnabled(): Boolean {
@@ -221,17 +406,21 @@ class MainActivity : Activity() {
 
     private fun startClock() {
         handler.post(object : Runnable {
-            override fun run() { tvClock.text = SimpleDateFormat("yyyy-MM-dd  HH:mm:ss", Locale.getDefault()).format(Date()); handler.postDelayed(this, 1000) }
+            override fun run() {
+                tvClock.text = SimpleDateFormat("yyyy-MM-dd  HH:mm:ss", Locale.getDefault()).format(Date())
+                handler.postDelayed(this, 1000)
+            }
         })
     }
 
     private fun toggleFullscreen() {
         val decor = window.decorView
-        val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         val full = (decor.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN) != 0
         decor.systemUiVisibility = if (full) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else flags
         bottomBar.visibility = if (full) View.VISIBLE else View.GONE
-        // 全屏时仍保留右上角操作区，让“眼睛”按钮可再次点击退出全屏
         topActions.visibility = View.VISIBLE
     }
 
@@ -254,41 +443,71 @@ class MainActivity : Activity() {
 
     data class Payment(val amount: String, val channel: String, val time: Long)
 
-    private inner class PaymentAdapter(private val context: Context, private val items: List<Payment>) : BaseAdapter() {
+    private inner class PaymentAdapter(
+        private val items: List<Payment>,
+        private val highlightFirstItem: Boolean,
+        private val layoutRes: Int
+    ) : BaseAdapter() {
         override fun getCount() = items.size
         override fun getItem(position: Int) = items[position]
-        override fun getItemId(position: Int) = position.toLong()
+        override fun getItemId(position: Int) = items[position].time
+
         override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup?): View {
-            val v = convertView ?: android.view.LayoutInflater.from(context).inflate(R.layout.item_payment, parent, false)
+            val view = convertView ?: android.view.LayoutInflater.from(this@MainActivity).inflate(layoutRes, parent, false)
             val item = items[position]
-            v.findViewById<TextView>(R.id.tv_payment_amount).text = "¥" + item.amount
-            val channelTv = v.findViewById<TextView>(R.id.tv_payment_channel)
-            channelTv.text = item.channel
-            v.findViewById<TextView>(R.id.tv_payment_time).text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
-            // 渠道颜色：微信绿、支付宝蓝、银行卡暖金色。
+            val amountView = view.findViewById<TextView>(R.id.tv_payment_amount)
+            val channelView = view.findViewById<TextView>(R.id.tv_payment_channel)
+            val timeView = view.findViewById<TextView>(R.id.tv_payment_time)
+            val iconView = view.findViewById<TextView>(R.id.tv_payment_channel_icon)
+            val badgeView = view.findViewById<TextView>(R.id.tv_payment_latest_badge)
+
+            amountView.text = "¥" + item.amount
+            channelView.text = item.channel
+            timeView.text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
+
             val channelColor = when {
                 item.channel.contains("微信") -> 0xFF07C160.toInt()
-                item.channel.contains("支付宝") -> 0xFF1677FF.toInt()
+                item.channel.contains("支付宝") -> 0xFF168BFF.toInt()
                 else -> 0xFFF2B84B.toInt()
             }
-            channelTv.setTextColor(channelColor)
-            val amountTv = v.findViewById<TextView>(R.id.tv_payment_amount)
-            val latestBadge = v.findViewById<TextView>(R.id.tv_payment_latest_badge)
-            // 今日最新一笔使用带描边的圆角卡片，避免纯色背景覆盖原卡片样式。
-            val todayStr = dayFormat.format(Calendar.getInstance().time)
-            val isToday = dayFormat.format(selectedDay.time) == todayStr
-            val isLatest = position == 0 && isToday
-            if (isLatest) {
-                v.setBackgroundResource(R.drawable.bg_payment_card_latest)
-                latestBadge.visibility = View.VISIBLE
-                amountTv.textSize = 30f
-            } else {
-                v.setBackgroundResource(R.drawable.bg_payment_card)
-                latestBadge.visibility = View.GONE
-                amountTv.textSize = 23f
+            channelView.setTextColor(channelColor)
+            amountView.setTextColor(if (highlightFirstItem && position == 0) channelColor else 0xFFF5F7FA.toInt())
+
+            val iconText = when {
+                item.channel.contains("微信") -> "微"
+                item.channel.contains("支付宝") -> "支"
+                else -> "银"
             }
-            amountTv.setTextColor(channelColor)
-            return v
+            iconView.text = iconText
+            val iconBackground = GradientDrawable().apply {
+                cornerRadius = 10f * resources.displayMetrics.density
+                setColor(channelColor)
+            }
+            iconView.background = iconBackground
+            iconView.setTextColor(0xFFFFFFFF.toInt())
+
+            val densityColumns = displayColumns
+            val amountSize = when (densityColumns) {
+                3 -> 30f
+                4 -> 27f
+                5 -> 24f
+                else -> 21f
+            }
+            val isLatest = highlightFirstItem && position == 0
+            amountView.textSize = amountSize + if (isLatest) 4f else 0f
+            val channelSize = when (densityColumns) {
+                3 -> 14f
+                4 -> 13f
+                5 -> 12f
+                else -> 11f
+            }
+            val portrait = resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            channelView.textSize = if (portrait) maxOf(12f, channelSize) else channelSize
+            timeView.textSize = if (portrait) maxOf(11f, channelSize) else maxOf(10f, channelSize - 1f)
+            if (badgeView != null) badgeView.visibility = if (isLatest) View.VISIBLE else View.GONE
+            if (isLatest) view.setBackgroundResource(R.drawable.bg_payment_card_latest)
+            else view.setBackgroundResource(R.drawable.bg_payment_card)
+            return view
         }
     }
 }

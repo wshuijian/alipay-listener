@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="88dp"
-    android:layout_marginBottom="2dp"
+    android:layout_height="72dp"
     android:background="@drawable/bg_payment_card"
     android:gravity="center_vertical"
     android:orientation="horizontal"
@@ -10,12 +9,12 @@
     android:paddingEnd="14dp">
     <TextView
         android:id="@+id/tv_payment_channel_icon"
-        android:layout_width="42dp"
-        android:layout_height="42dp"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
         android:gravity="center"
         android:text="微"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="14sp"
         android:textStyle="bold"/>
     <LinearLayout
         android:layout_width="0dp"
@@ -29,7 +28,7 @@
             android:layout_height="wrap_content"
             android:text="¥0.00"
             android:textColor="#F5F7FA"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"/>
         <TextView
             android:id="@+id/tv_payment_channel"
@@ -43,7 +42,7 @@
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="end|center_vertical"
+        android:gravity="end"
         android:orientation="vertical">
         <TextView
             android:id="@+id/tv_payment_latest_badge"
@@ -61,7 +60,7 @@
             android:id="@+id/tv_payment_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="4dp"
             android:text="12:34:56"
             android:textColor="#9AA8B6"
             android:textSize="12sp"/>

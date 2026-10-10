@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="164dp"
+    android:background="@drawable/bg_payment_card"
+    android:orientation="vertical"
+    android:padding="12dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+        <TextView android:id="@+id/tv_payment_channel_icon" android:layout_width="36dp" android:layout_height="36dp" android:gravity="center" android:text="微" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold"/>
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+        <TextView android:id="@+id/tv_payment_latest_badge" android:layout_width="wrap_content" android:layout_height="20dp" android:background="@drawable/bg_payment_latest_badge" android:gravity="center" android:paddingStart="7dp" android:paddingEnd="7dp" android:text="最新" android:textColor="#8ABEFF" android:textSize="10sp" android:visibility="gone"/>
+    </LinearLayout>
+    <TextView android:id="@+id/tv_payment_amount" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:ellipsize="end" android:maxLines="1" android:text="¥0.00" android:textColor="#F5F7FA" android:textSize="24sp" android:textStyle="bold"/>
+    <TextView android:id="@+id/tv_payment_channel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:ellipsize="end" android:maxLines="1" android:text="微信支付" android:textColor="#AAB5C1" android:textSize="12sp"/>
+    <TextView android:id="@+id/tv_payment_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="12:34:56" android:textColor="#8392A3" android:textSize="11sp"/>
+</LinearLayout>
