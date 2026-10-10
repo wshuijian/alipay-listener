@@ -31,13 +31,6 @@ class AlipayNotificationListener : NotificationListenerService() {
         private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
         private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
         private val ICBC_AMOUNT_PATTERN = Pattern.compile("收入.*?([\\d]+\\.?[\\d]*)元")
-        // 商户之家通知字段可能因版本/通知样式不同而落在 title、text、bigText 或 tickerText。
-        // 先匹配明确的金额标签，再匹配“收款成功/收入 + 金额”，最后使用通用“数字+元”规则。
-        private val ICBC_MERCHANT_AMOUNT_PATTERNS = listOf(
-            Pattern.compile("""(?:实收金额|收款金额|交易金额|到账金额|收入金额|金额)[^0-9￥¥]{0,10}[￥¥]?\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:元)?"""),
-            Pattern.compile("""(?:收款到账|收款成功|商户收款|收入到账|收款|收入)[^0-9￥¥]{0,16}[￥¥]?\s*([0-9]+(?:\.[0-9]{1,2})?)\s*元"""),
-            Pattern.compile("""[￥¥]\s*([0-9]+(?:\.[0-9]{1,2})?)\s*元?""")
-        )
         private val WEIPAY_ASSISTANT_AMOUNT_PATTERN = Pattern.compile("微邮付收款([\\d]+\\.?[\\d]*)元")
         // 通用银行收款规则配置
         private val GENERIC_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:\\.[0-9]{1,2})?)元")
@@ -260,21 +253,16 @@ class AlipayNotificationListener : NotificationListenerService() {
                     val negativeKeywords = listOf("退款", "支出", "扣费", "还款", "转出", "转账出", "交易失败", "收款失败", "已撤销", "已冲正")
                     if (negativeKeywords.any { merchantText.contains(it) }) return
 
-                    val positiveKeywords = listOf("收款", "收入", "到账", "实收")
+                    // 确认的商户之家实测格式：标题“工银商户之家”，正文“您已收到0.01元，点击查看详情。”
+                    // “已收到”是商户到账通知的关键短语；不要求必须包含“收款/收入/到账”字样。
+                    val positiveKeywords = listOf("您已收到", "已收到", "收款", "收入", "到账", "实收")
                     if (positiveKeywords.none { merchantText.contains(it) }) return
 
-                    var amount: String? = null
-                    for (pattern in ICBC_MERCHANT_AMOUNT_PATTERNS) {
-                        val matcher = pattern.matcher(merchantText)
-                        if (matcher.find()) {
-                            amount = matcher.group(1)
-                            break
-                        }
-                    }
-                    if (amount.isNullOrBlank()) {
-                        val matcher = GENERIC_AMOUNT_PATTERN.matcher(merchantText)
-                        if (matcher.find()) amount = matcher.group(1)
-                    }
+                    // 按实际通知格式提取金额：您已收到0.01元
+                    val amount = Regex("([0-9]+(?:\\\\.[0-9]{1,2})?)元")
+                        .find(merchantText)
+                        ?.groupValues
+                        ?.getOrNull(1)
                     if (amount.isNullOrBlank()) {
                         LogManager.addLog("工银商户之家未识别", "通知包含收款关键词但未提取到金额: ${merchantText.take(180)}")
                         return
