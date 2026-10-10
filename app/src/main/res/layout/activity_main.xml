@@ -14,14 +14,7 @@
     </LinearLayout>
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <LinearLayout android:id="@+id/panel_home" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="96dp" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:layout_marginTop="10dp" android:padding="14dp" android:orientation="vertical" android:gravity="center_vertical" android:background="@drawable/bg_payment_card_latest">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="今日收款" android:textColor="#96B8D3" android:textSize="13sp"/>
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-                    <TextView android:id="@+id/tv_today_total" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="¥0.00" android:textColor="#F7FBFF" android:textSize="30sp" android:textStyle="bold"/>
-                    <TextView android:id="@+id/tv_today_count" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0 笔收款" android:textColor="#00D6A0" android:textSize="13sp"/>
-                </LinearLayout>
-            </LinearLayout>
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingTop="12dp" android:paddingBottom="4dp" android:text="最近收款" android:textColor="#DCE8F3" android:textSize="15sp" android:textStyle="bold"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingTop="8dp" android:paddingBottom="6dp" android:text="最近收款" android:textColor="#DCE8F3" android:textSize="15sp" android:textStyle="bold"/>
             <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
                 <ListView android:id="@+id/lv_payments" android:layout_width="match_parent" android:layout_height="match_parent" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="6dp" android:paddingBottom="8dp" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:clipToPadding="false"/>
                 <TextView android:id="@+id/tv_home_empty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:text="等待收款…&#10;新订单会自动显示在这里" android:textColor="#60758A" android:textSize="15sp"/>
@@ -70,14 +63,9 @@
         <ScrollView android:id="@+id/panel_settings" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="16dp" android:visibility="gone">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="设置" android:textColor="#F5F8FC" android:textSize="24sp" android:textStyle="bold"/>
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="横屏列数与字号同步变化，越少列，金额越大" android:textColor="#8DA4B9" android:textSize="13sp"/>
-                <RadioGroup android:id="@+id/rg_display_columns" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="horizontal">
-                    <RadioButton android:id="@+id/rb_columns_3" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:buttonTint="#00D6A0" android:text="3 列" android:textColor="#DCE8F3" android:textSize="14sp"/>
-                    <RadioButton android:id="@+id/rb_columns_4" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:buttonTint="#00D6A0" android:text="4 列" android:textColor="#DCE8F3" android:textSize="14sp"/>
-                    <RadioButton android:id="@+id/rb_columns_5" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:buttonTint="#00D6A0" android:text="5 列" android:textColor="#DCE8F3" android:textSize="14sp"/>
-                    <RadioButton android:id="@+id/rb_columns_6" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:buttonTint="#00D6A0" android:text="6 列" android:textColor="#DCE8F3" android:textSize="14sp"/>
-                </RadioGroup>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="显示密度会记住上次选择。竖屏继续使用单列易读模式。" android:textColor="#718AA1" android:textSize="12sp"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="横屏每行列数可选 4–12；屏幕较窄时自动减少实际列数" android:textColor="#8DA4B9" android:textSize="13sp"/>
+                <Spinner android:id="@+id/sp_display_columns" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:background="#10283C" android:paddingStart="10dp" android:paddingEnd="10dp" android:spinnerMode="dropdown"/>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="会记住上次选择，并根据手机或平板屏幕宽度自适应卡片大小；竖屏保持单列。" android:textColor="#718AA1" android:textSize="12sp"/>
                 <EditText android:id="@+id/et_pair_code" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="14dp" android:hint="输入6位配对码" android:gravity="center" android:inputType="number" android:maxLength="6" android:textColor="#F5F8FC" android:textColorHint="#667D92" android:textSize="18sp" android:background="#10283C"/>
                 <Button android:id="@+id/btn_start" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="10dp" android:text="启动监听服务" android:textColor="#FFFFFF" android:backgroundTint="#00A97C"/>
                 <Button android:id="@+id/btn_open_notification_access" android:layout_width="match_parent" android:layout_height="46dp" android:layout_marginTop="8dp" android:text="开启通知监听权限" android:textColor="#DCE8F3" android:backgroundTint="#173149"/>

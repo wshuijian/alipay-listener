@@ -40,12 +40,10 @@ class MainActivity : Activity() {
     private lateinit var topActions: View
     private lateinit var etPairCode: EditText
     private lateinit var tvLog: TextView
-    private lateinit var tvTodayTotal: TextView
-    private lateinit var tvTodayCount: TextView
     private lateinit var tvDataTotal: TextView
     private lateinit var tvDataCount: TextView
     private lateinit var tvHistoryDate: TextView
-    private lateinit var rgDisplayColumns: RadioGroup
+    private lateinit var spDisplayColumns: Spinner
     private lateinit var cbTtsSwitch: CheckBox
 
     private val prefsName = "alipay_listener_prefs"
@@ -60,7 +58,8 @@ class MainActivity : Activity() {
     private val dateLabelFormat = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
     private var tts: TextToSpeech? = null
     private var ttsEnabled = true
-    private var displayColumns = 6
+    private var displayColumns = 8
+    private var effectiveDisplayColumns = 8
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,15 +96,13 @@ class MainActivity : Activity() {
         tvClock = findViewById(R.id.tv_clock)
         etPairCode = findViewById(R.id.et_pair_code)
         tvLog = findViewById(R.id.tv_log)
-        tvTodayTotal = findViewById(R.id.tv_today_total)
-        tvTodayCount = findViewById(R.id.tv_today_count)
         tvDataTotal = findViewById(R.id.tv_data_total)
         tvDataCount = findViewById(R.id.tv_data_count)
         tvHistoryDate = findViewById(R.id.tv_history_date)
-        rgDisplayColumns = findViewById(R.id.rg_display_columns)
+        spDisplayColumns = findViewById(R.id.sp_display_columns)
 
         val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-        displayColumns = prefs.getInt(displayColumnsKey, 6).coerceIn(3, 6)
+        displayColumns = prefs.getInt(displayColumnsKey, 8).coerceIn(4, 12)
         ttsEnabled = prefs.getBoolean("tts_enabled", true)
         findViewById<TextView>(R.id.tv_shop_name).text = prefs.getString("shop_name", "长风照相馆") ?: "长风照相馆"
 
@@ -131,12 +128,11 @@ class MainActivity : Activity() {
         cbTtsSwitch = findViewById(R.id.cb_tts_switch)
         cbTtsSwitch.isChecked = ttsEnabled
         etPairCode.setText(prefs.getString("pair_code", ""))
-        when (displayColumns) {
-            3 -> rgDisplayColumns.check(R.id.rb_columns_3)
-            4 -> rgDisplayColumns.check(R.id.rb_columns_4)
-            5 -> rgDisplayColumns.check(R.id.rb_columns_5)
-            else -> rgDisplayColumns.check(R.id.rb_columns_6)
+        val columnOptions = (4..12).map { "$it 列" }
+        spDisplayColumns.adapter = ArrayAdapter(this, R.layout.item_spinner_column, columnOptions).apply {
+            setDropDownViewResource(R.layout.item_spinner_column)
         }
+        spDisplayColumns.setSelection(displayColumns - 4, false)
         applyDisplayDensity()
     }
 
@@ -209,15 +205,17 @@ class MainActivity : Activity() {
             ttsEnabled = checked
             getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("tts_enabled", checked).apply()
         }
-        rgDisplayColumns.setOnCheckedChangeListener { _, checkedId ->
-            displayColumns = when (checkedId) {
-                R.id.rb_columns_3 -> 3
-                R.id.rb_columns_4 -> 4
-                R.id.rb_columns_5 -> 5
-                else -> 6
+        spDisplayColumns.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selectedColumns = (position + 4).coerceIn(4, 12)
+                if (selectedColumns != displayColumns) {
+                    displayColumns = selectedColumns
+                    getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit()
+                        .putInt(displayColumnsKey, displayColumns).apply()
+                    applyDisplayDensity()
+                }
             }
-            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putInt(displayColumnsKey, displayColumns).apply()
-            applyDisplayDensity()
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
         findViewById<Button>(R.id.btn_copy_log).setOnClickListener {
             val allLogs = LogManager.getAllLogs().joinToString("\n")
@@ -246,11 +244,17 @@ class MainActivity : Activity() {
 
     private fun addPayment(amount: String, channel: String) {
         if (amount.trim().isEmpty()) return
+        val normalizedChannel = channel.trim()
+        val lowerChannel = normalizedChannel.lowercase(Locale.ROOT)
+        val genericBankLabels = setOf(
+            "", "收款", "银行卡", "银行卡收款", "bank", "bank_mqtt",
+            "unknown", "unknown_channel", "未知渠道", "generic_bank"
+        )
         val finalChannel = when {
-            channel.isEmpty() -> "银行卡收款"
-            channel.contains("微信") -> "微信支付"
-            channel.contains("支付宝") -> "支付宝"
-            else -> channel
+            lowerChannel in genericBankLabels -> "银行卡收款"
+            normalizedChannel.contains("微信") -> "微信支付"
+            normalizedChannel.contains("支付宝") -> "支付宝"
+            else -> normalizedChannel
         }
         // MQTT 回调仅提供金额和渠道，不按金额猜测重复交易，避免吞掉同额真实收款。
         allPayments.add(0, Payment(amount.trim(), finalChannel, System.currentTimeMillis()))
@@ -259,7 +263,14 @@ class MainActivity : Activity() {
         refreshHistoryList()
         updateTodaySummary()
         if (ttsEnabled) {
-            tts?.speak("${finalChannel}到账${amount}元", TextToSpeech.QUEUE_FLUSH, null, "payment_${System.currentTimeMillis()}")
+            val speechText = when (finalChannel) {
+                "微信支付", "支付宝" -> "${finalChannel}到账${amount}元"
+                else -> {
+                    val spokenChannel = if (finalChannel.endsWith("收款")) finalChannel else "${finalChannel}收款"
+                    "${spokenChannel}到账${amount}元"
+                }
+            }
+            tts?.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "payment_${System.currentTimeMillis()}")
         }
     }
 
@@ -294,15 +305,17 @@ class MainActivity : Activity() {
         val todays = allPayments.filter { dayFormat.format(Date(it.time)) == todayStr }
         val total = todays.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
         val money = "¥" + DecimalFormat("#,##0.00").format(total)
-        tvTodayTotal.text = money
-        tvTodayCount.text = "${todays.size} 笔收款"
         tvDataTotal.text = money
         tvDataCount.text = "${todays.size} 笔交易"
     }
 
     private fun applyDisplayDensity() {
-        homeGridView?.numColumns = displayColumns
-        historyGridView?.numColumns = displayColumns
+        // 根据设备可用宽度限制实际列数，避免手机横屏卡片过窄。
+        val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
+        val maxColumnsThatFit = (availableWidthDp / 80).coerceIn(4, 12)
+        effectiveDisplayColumns = minOf(displayColumns, maxColumnsThatFit)
+        homeGridView?.numColumns = effectiveDisplayColumns
+        historyGridView?.numColumns = effectiveDisplayColumns
         homeGridView?.horizontalSpacing = dp(10)
         homeGridView?.verticalSpacing = dp(10)
         historyGridView?.horizontalSpacing = dp(10)
@@ -420,23 +433,39 @@ class MainActivity : Activity() {
                 latestBadge.visibility = View.GONE
             }
             val isGrid = parent is GridView
+            val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
+            val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns else 0
             val heightDp = if (isGrid) {
-                when (displayColumns) { 3 -> 174; 4 -> 154; 5 -> 136; else -> 120 }
-            } else {
-                when (displayColumns) { 3 -> 106; 4 -> 96; 5 -> 88; else -> 82 }
-            }
+                when {
+                    cellWidthDp >= 190 -> 168
+                    cellWidthDp >= 160 -> 154
+                    cellWidthDp >= 135 -> 142
+                    cellWidthDp >= 115 -> 132
+                    cellWidthDp >= 95 -> 120
+                    else -> 108
+                }
+            } else 82
             view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))).apply {
                 height = dp(heightDp)
             }
             amountTv.textSize = if (isGrid) {
-                when (displayColumns) { 3 -> 31f; 4 -> 28f; 5 -> 24f; else -> 21f }
-            } else {
-                when (displayColumns) { 3 -> 31f; 4 -> 28f; 5 -> 25f; else -> 23f }
-            }
+                when {
+                    cellWidthDp >= 190 -> 28f
+                    cellWidthDp >= 160 -> 25f
+                    cellWidthDp >= 135 -> 22f
+                    cellWidthDp >= 115 -> 20f
+                    cellWidthDp >= 95 -> 18f
+                    else -> 15f
+                }
+            } else 28f
             channelTv.textSize = if (isGrid) {
-                when (displayColumns) { 3 -> 15f; 4 -> 14f; 5 -> 13f; else -> 12f }
-            } else 13f
-            timeTv.textSize = 12f
+                when {
+                    cellWidthDp >= 160 -> 14f
+                    cellWidthDp >= 115 -> 12f
+                    else -> 10f
+                }
+            } else 12f
+            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else 12f
             return view
         }
     }
