@@ -116,10 +116,10 @@
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:text="横屏显示列数与字体大小" android:textColor="#E6EDF4" android:textSize="16sp" android:textStyle="bold"/>
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="列数越少，金额和卡片越大；列数越多，一屏显示的收款越多。竖屏仍为单列，字号和卡片高度同步调整。" android:textColor="#7F8B99" android:textSize="13sp"/>
                 <RadioGroup android:id="@+id/rg_columns" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="horizontal">
-                    <RadioButton android:id="@+id/rb_cols_3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="3列\n大字" android:textColor="#E6EDF4" android:textSize="13sp"/>
-                    <RadioButton android:id="@+id/rb_cols_4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="4列\n较大" android:textColor="#E6EDF4" android:textSize="13sp"/>
-                    <RadioButton android:id="@+id/rb_cols_5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="5列\n标准" android:textColor="#E6EDF4" android:textSize="13sp"/>
-                    <RadioButton android:id="@+id/rb_cols_6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="6列\n紧凑" android:textColor="#E6EDF4" android:textSize="13sp"/>
+                    <RadioButton android:id="@+id/rb_cols_3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="3列&#10;大字" android:textColor="#E6EDF4" android:textSize="13sp"/>
+                    <RadioButton android:id="@+id/rb_cols_4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="4列&#10;较大" android:textColor="#E6EDF4" android:textSize="13sp"/>
+                    <RadioButton android:id="@+id/rb_cols_5" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="5列&#10;标准" android:textColor="#E6EDF4" android:textSize="13sp"/>
+                    <RadioButton android:id="@+id/rb_cols_6" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:buttonTint="#00C98D" android:text="6列&#10;紧凑" android:textColor="#E6EDF4" android:textSize="13sp"/>
                 </RadioGroup>
                 <CheckBox android:id="@+id/cb_tts_switch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:buttonTint="#00C98D" android:text="开启本机收款语音播报" android:textColor="#F5F7FA" android:checked="true"/>
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="高级诊断" android:textColor="#E6EDF4" android:textSize="16sp" android:textStyle="bold"/>
@@ -132,9 +132,9 @@
     </FrameLayout>
 
     <LinearLayout android:id="@+id/bottom_bar" android:layout_width="match_parent" android:layout_height="54dp" android:background="#07131E" android:orientation="horizontal">
-        <TextView android:id="@+id/tab_home" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="⌂\n首页" android:textColor="#00C98D" android:textSize="13sp"/>
-        <TextView android:id="@+id/tab_data" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="▤\n数据" android:textColor="#8392A3" android:textSize="13sp"/>
-        <TextView android:id="@+id/tab_device" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="▣\n设备" android:textColor="#8392A3" android:textSize="13sp"/>
-        <TextView android:id="@+id/tab_settings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="⚙\n设置" android:textColor="#8392A3" android:textSize="13sp"/>
+        <TextView android:id="@+id/tab_home" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="⌂&#10;首页" android:textColor="#00C98D" android:textSize="13sp"/>
+        <TextView android:id="@+id/tab_data" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="▤&#10;数据" android:textColor="#8392A3" android:textSize="13sp"/>
+        <TextView android:id="@+id/tab_device" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="▣&#10;设备" android:textColor="#8392A3" android:textSize="13sp"/>
+        <TextView android:id="@+id/tab_settings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="⚙&#10;设置" android:textColor="#8392A3" android:textSize="13sp"/>
     </LinearLayout>
 </LinearLayout>
