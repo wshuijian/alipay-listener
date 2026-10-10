@@ -294,7 +294,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     if (!matcher.find()) return
                     val amount = matcher.group(1)
                     LogManager.addLog("✅ 邮付助理", "收款金额:¥$amount")
-                    MqttClientManager.sendPayment(amount = amount, rawText = "WEIPAY_ASSISTANT|$text", source = "WEIPAY_ASSISTANT")
+                    MqttClientManager.sendPayment(amount = amount, rawText = "WEIPAY_ASSISTANT|$text", appName = "邮付小助手", source = "WEIPAY_ASSISTANT")
                     return // 命中邮付助理规则，立刻退出，不进入通用规则
                 }
             }
