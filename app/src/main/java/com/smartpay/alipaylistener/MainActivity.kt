@@ -143,6 +143,10 @@ class MainActivity : Activity() {
             updateStatus()
             Toast.makeText(this, "状态已刷新", Toast.LENGTH_SHORT).show()
         }
+        findViewById<Button>(R.id.btn_refresh_device).setOnClickListener {
+            updateStatus()
+            Toast.makeText(this, "设备状态已刷新", Toast.LENGTH_SHORT).show()
+        }
 
         findViewById<Button>(R.id.btn_start).setOnClickListener {
             val code = etPairCode.text.toString().trim()
@@ -311,11 +315,9 @@ class MainActivity : Activity() {
             HistoryRange.LAST_7_DAYS -> (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -6) }
             HistoryRange.CUSTOM -> dayStart(customHistoryDate)
         }
-        val endExclusive = (start.clone() as Calendar).apply {
-            when (historyRange) {
-                HistoryRange.TODAY, HistoryRange.LAST_7_DAYS -> add(Calendar.DAY_OF_YEAR, 1)
-                HistoryRange.YESTERDAY, HistoryRange.CUSTOM -> add(Calendar.DAY_OF_YEAR, 1)
-            }
+        val endExclusive = when (historyRange) {
+            HistoryRange.LAST_7_DAYS -> (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+            else -> (start.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
         }
         return Pair(start.timeInMillis, endExclusive.timeInMillis)
     }
