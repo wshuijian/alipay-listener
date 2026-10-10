@@ -259,7 +259,7 @@ class AlipayNotificationListener : NotificationListenerService() {
                     if (positiveKeywords.none { merchantText.contains(it) }) return
 
                     // 按实际通知格式提取金额：您已收到0.01元
-                    val amount = Regex("([0-9]+(?:\\\\.[0-9]{1,2})?)元")
+                    val amount = Regex("([0-9]+(?:\\.[0-9]{1,2})?)元")
                         .find(merchantText)
                         ?.groupValues
                         ?.getOrNull(1)
