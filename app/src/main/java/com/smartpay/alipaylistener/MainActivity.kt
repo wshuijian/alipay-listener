@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private val filteredPayments = mutableListOf<Payment>() // 当前选中日期显示的订单
     private val selectedDay = Calendar.getInstance() // 当前选中查看的日期，默认今天
     private val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val dateLabelFormat = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
     private lateinit var tvSelectedDate: TextView
     private var tts: TextToSpeech? = null
     private var ttsEnabled = true // 默认开启软件TTS播报
@@ -94,9 +95,10 @@ class MainActivity : Activity() {
             refreshDayList()
         }
         findViewById<TextView>(R.id.btn_next_day).setOnClickListener {
-            val today = Calendar.getInstance()
-            if (selectedDay.before(today) || selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)) {
+            val selectedDate = dayFormat.format(selectedDay.time)
+            val todayDate = dayFormat.format(Calendar.getInstance().time)
+            // 日期按 yyyy-MM-dd 比较，今天不允许继续翻到未来日期。
+            if (selectedDate < todayDate) {
                 selectedDay.add(Calendar.DAY_OF_MONTH, 1)
                 refreshDayList()
             }
@@ -173,7 +175,17 @@ class MainActivity : Activity() {
         }
         // 按时间倒序，最新的排前面
         filteredPayments.sortByDescending { it.time }
-        tvSelectedDate.text = dayStr
+        val todayStr = dayFormat.format(Calendar.getInstance().time)
+        val isToday = dayStr == todayStr
+        tvSelectedDate.text = if (isToday) {
+            "今天 · ${dateLabelFormat.format(selectedDay.time)}"
+        } else {
+            dateLabelFormat.format(selectedDay.time)
+        }
+        findViewById<TextView>(R.id.btn_next_day).apply {
+            isEnabled = !isToday
+            alpha = if (isToday) 0.35f else 1.0f
+        }
         adapter.notifyDataSetChanged()
     }
 
@@ -253,27 +265,29 @@ class MainActivity : Activity() {
             val channelTv = v.findViewById<TextView>(R.id.tv_payment_channel)
             channelTv.text = item.channel
             v.findViewById<TextView>(R.id.tv_payment_time).text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(item.time))
-            // 渠道颜色：微信绿、支付宝蓝、其他银行红
+            // 渠道颜色：微信绿、支付宝蓝、银行卡暖金色。
             val channelColor = when {
                 item.channel.contains("微信") -> 0xFF07C160.toInt()
                 item.channel.contains("支付宝") -> 0xFF1677FF.toInt()
-                else -> 0xFFF43F5E.toInt()
+                else -> 0xFFF2B84B.toInt()
             }
             channelTv.setTextColor(channelColor)
             val amountTv = v.findViewById<TextView>(R.id.tv_payment_amount)
-            // 最新一笔高亮：只有当前选中是今天，且是列表第一笔时高亮
-            val today = Calendar.getInstance()
-            val isToday = selectedDay.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                    selectedDay.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
-            if (position == 0 && isToday) {
-                v.setBackgroundColor(0x331677FF.toInt()) // 蓝色半透明高亮背景
-                amountTv.setTextColor(channelColor) // 大字金额用对应渠道色
-                amountTv.textSize = 28f
+            val latestBadge = v.findViewById<TextView>(R.id.tv_payment_latest_badge)
+            // 今日最新一笔使用带描边的圆角卡片，避免纯色背景覆盖原卡片样式。
+            val todayStr = dayFormat.format(Calendar.getInstance().time)
+            val isToday = dayFormat.format(selectedDay.time) == todayStr
+            val isLatest = position == 0 && isToday
+            if (isLatest) {
+                v.setBackgroundResource(R.drawable.bg_payment_card_latest)
+                latestBadge.visibility = View.VISIBLE
+                amountTv.textSize = 30f
             } else {
-                v.setBackgroundColor(0x00000000) // 透明背景
-                amountTv.setTextColor(channelColor) // 普通订单大字金额也用对应渠道色
-                amountTv.textSize = 22f
+                v.setBackgroundResource(R.drawable.bg_payment_card)
+                latestBadge.visibility = View.GONE
+                amountTv.textSize = 23f
             }
+            amountTv.setTextColor(channelColor)
             return v
         }
     }

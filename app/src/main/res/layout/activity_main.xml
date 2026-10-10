@@ -16,7 +16,7 @@
             <!-- 日期切换栏 -->
             <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:padding="8dp" android:background="#151C24">
                 <TextView android:id="@+id/btn_prev_day" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="‹" android:textColor="#F5F7FA" android:textSize="24sp" android:clickable="true"/>
-                <TextView android:id="@+id/tv_selected_date" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="2026-10-07" android:textColor="#F5F7FA" android:textSize="16sp"/>
+                <TextView android:id="@+id/tv_selected_date" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="今天" android:textColor="#F5F7FA" android:textSize="16sp"/>
                 <TextView android:id="@+id/btn_next_day" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="›" android:textColor="#F5F7FA" android:textSize="24sp" android:clickable="true"/>
             </LinearLayout>
             <ListView android:id="@+id/lv_payments" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="8dp" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:clipToPadding="false"/>

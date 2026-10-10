@@ -1,6 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="68dp" android:background="@drawable/bg_payment_card" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="18dp" android:paddingEnd="18dp">
-<TextView android:id="@+id/tv_payment_amount" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="¥0.00" android:textColor="#F5F7FA" android:textSize="30sp" android:textStyle="bold"/>
-<TextView android:id="@+id/tv_payment_channel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="14dp" android:text="支付宝" android:textColor="#AAB5C1" android:textSize="12sp"/>
-<TextView android:id="@+id/tv_payment_time" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="12:34:56" android:textColor="#778492" android:textSize="12sp"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="82dp"
+    android:background="@drawable/bg_payment_card"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingEnd="16dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_payment_amount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="¥0.00"
+            android:textColor="#F5F7FA"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_payment_channel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="支付宝"
+            android:textColor="#AAB5C1"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_payment_latest_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:background="@drawable/bg_payment_latest_badge"
+            android:gravity="center"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="最新"
+            android:textColor="#8ABEFF"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tv_payment_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="12:34:56"
+            android:textColor="#9AA8B6"
+            android:textSize="12sp" />
+    </LinearLayout>
 </LinearLayout>
