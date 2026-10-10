@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         rgColumns = findViewById(R.id.rg_columns)
 
         val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-        displayColumns = prefs.getInt("display_columns", 5).coerceIn(3, 6)
+        displayColumns = prefs.getInt("display_columns", 6).coerceIn(3, 6)
         ttsEnabled = prefs.getBoolean("tts_enabled", true)
         tvShopName.text = prefs.getString("shop_name", "长风照相馆") ?: "长风照相馆"
         etShopName.setText(tvShopName.text)
