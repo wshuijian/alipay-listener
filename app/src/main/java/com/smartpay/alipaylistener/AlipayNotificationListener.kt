@@ -34,9 +34,9 @@ class AlipayNotificationListener : NotificationListenerService() {
         // 商户之家通知字段可能因版本/通知样式不同而落在 title、text、bigText 或 tickerText。
         // 先匹配明确的金额标签，再匹配“收款成功/收入 + 金额”，最后使用通用“数字+元”规则。
         private val ICBC_MERCHANT_AMOUNT_PATTERNS = listOf(
-            Pattern.compile("""(?:实收金额|收款金额|交易金额|到账金额|收入金额|金额)[^0-9￥¥]{0,10}[￥¥]?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*(?:元)?"""),
-            Pattern.compile("""(?:收款到账|收款成功|商户收款|收入到账|收款|收入)[^0-9￥¥]{0,16}[￥¥]?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*元"""),
-            Pattern.compile("""[￥¥]\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*元?""")
+            Pattern.compile("""(?:实收金额|收款金额|交易金额|到账金额|收入金额|金额)[^0-9￥¥]{0,10}[￥¥]?\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:元)?"""),
+            Pattern.compile("""(?:收款到账|收款成功|商户收款|收入到账|收款|收入)[^0-9￥¥]{0,16}[￥¥]?\s*([0-9]+(?:\.[0-9]{1,2})?)\s*元"""),
+            Pattern.compile("""[￥¥]\s*([0-9]+(?:\.[0-9]{1,2})?)\s*元?""")
         )
         private val WEIPAY_ASSISTANT_AMOUNT_PATTERN = Pattern.compile("微邮付收款([\\d]+\\.?[\\d]*)元")
         // 通用银行收款规则配置
