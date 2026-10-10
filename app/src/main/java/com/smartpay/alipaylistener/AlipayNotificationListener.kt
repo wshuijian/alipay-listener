@@ -18,6 +18,8 @@ class AlipayNotificationListener : NotificationListenerService() {
         private const val ALIPAY_PACKAGE = "com.eg.android.AlipayGphone"
         private const val WECHAT_PACKAGE = "com.tencent.mm"
         private const val ICBC_PACKAGE = "com.icbc"
+        // 工银商户之家与个人工商银行 APP 使用不同包名，单独解析。
+        private const val ICBC_MERCHANT_PACKAGE = "com.icbc.biz.elife"
         private const val WEIPAY_ASSISTANT_PACKAGE = "com.kuaiyin.micropayassistant"
         private const val ALIPAY_PAY_CHANNEL = "alipay_default"
 
@@ -29,6 +31,13 @@ class AlipayNotificationListener : NotificationListenerService() {
         private val ALIPAY_AMOUNT_PATTERN = Pattern.compile("你已成功收款([\\d]+\\.?[\\d]*)元")
         private val WECHAT_AMOUNT_PATTERN = Pattern.compile("微信支付收款([\\d]+\\.?[\\d]*)元")
         private val ICBC_AMOUNT_PATTERN = Pattern.compile("收入.*?([\\d]+\\.?[\\d]*)元")
+        // 商户之家通知字段可能因版本/通知样式不同而落在 title、text、bigText 或 tickerText。
+        // 先匹配明确的金额标签，再匹配“收款成功/收入 + 金额”，最后使用通用“数字+元”规则。
+        private val ICBC_MERCHANT_AMOUNT_PATTERNS = listOf(
+            Pattern.compile("""(?:实收金额|收款金额|交易金额|到账金额|收入金额|金额)[^0-9￥¥]{0,10}[￥¥]?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*(?:元)?"""),
+            Pattern.compile("""(?:收款到账|收款成功|商户收款|收入到账|收款|收入)[^0-9￥¥]{0,16}[￥¥]?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*元"""),
+            Pattern.compile("""[￥¥]\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*元?""")
+        )
         private val WEIPAY_ASSISTANT_AMOUNT_PATTERN = Pattern.compile("微邮付收款([\\d]+\\.?[\\d]*)元")
         // 通用银行收款规则配置
         private val GENERIC_AMOUNT_PATTERN = Pattern.compile("([0-9]+(?:\\.[0-9]{1,2})?)元")
@@ -195,6 +204,9 @@ class AlipayNotificationListener : NotificationListenerService() {
             val extras = notification.extras ?: return
             val title = extras.getCharSequence(Notification.EXTRA_TITLE, "")?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT, "")?.toString() ?: ""
+            val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty()
+            val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
+            val tickerText = notification.tickerText?.toString().orEmpty()
 
             val eventKey = "${sbn.key}_${sbn.postTime}"
             if (processedKeys.contains(eventKey)) return
@@ -236,8 +248,49 @@ class AlipayNotificationListener : NotificationListenerService() {
                     MqttClientManager.sendPayment(amount = amount, rawText = "WECHAT|$cleanText", source = "WECHAT")
                     return // 命中微信收款规则，立刻退出，不进入通用规则
                 }
+                ICBC_MERCHANT_PACKAGE -> {
+                    // 工银商户之家：单独处理，不依赖“个人工商银行 APP”的固定标题。
+                    val merchantText = listOf(title, text, bigText, subText, tickerText)
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                        .joinToString(" | ")
+                    if (merchantText.isBlank()) return
+
+                    // 拦截退款/支出等非收款通知，避免把负向交易显示成到账。
+                    val negativeKeywords = listOf("退款", "支出", "扣费", "还款", "转出", "转账出", "交易失败", "收款失败", "已撤销", "已冲正")
+                    if (negativeKeywords.any { merchantText.contains(it) }) return
+
+                    val positiveKeywords = listOf("收款", "收入", "到账", "实收")
+                    if (positiveKeywords.none { merchantText.contains(it) }) return
+
+                    var amount: String? = null
+                    for (pattern in ICBC_MERCHANT_AMOUNT_PATTERNS) {
+                        val matcher = pattern.matcher(merchantText)
+                        if (matcher.find()) {
+                            amount = matcher.group(1)
+                            break
+                        }
+                    }
+                    if (amount.isNullOrBlank()) {
+                        val matcher = GENERIC_AMOUNT_PATTERN.matcher(merchantText)
+                        if (matcher.find()) amount = matcher.group(1)
+                    }
+                    if (amount.isNullOrBlank()) {
+                        LogManager.addLog("工银商户之家未识别", "通知包含收款关键词但未提取到金额: ${merchantText.take(180)}")
+                        return
+                    }
+
+                    LogManager.addLog("✅ 工银商户之家", "收款金额:¥$amount")
+                    MqttClientManager.sendPayment(
+                        amount = amount,
+                        rawText = "ICBC_MERCHANT|$merchantText",
+                        appName = "工银商户之家",
+                        source = "ICBC_MERCHANT"
+                    )
+                    return // 命中商户之家规则，立刻退出，不进入通用规则
+                }
                 ICBC_PACKAGE -> {
-                    // 工商银行动账通知解析
+                    // 个人工商银行 APP 动账通知解析（与商户之家不同包名）
                     if (title != "动账通知" || !text.contains("收入")) return
                     val matcher = ICBC_AMOUNT_PATTERN.matcher(text)
                     if (!matcher.find()) return
