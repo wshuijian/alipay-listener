@@ -486,12 +486,11 @@ class MainActivity : Activity() {
             val isGrid = parent is GridView
             val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
             val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns.coerceAtLeast(1) else 0
-            // 卡片高度：使用父控件(ListView/GridView)实际高度计算，不再用屏幕高度估算
-            // 顶部区域已由布局处理，父控件高度就是列表真正可用高度
+            // 卡片高度：使用父控件(ListView/GridView)实际高度计算，扣除间距后按数量均分
             val containerHeight = parent?.height ?: 0
             val itemHeightPx = if (containerHeight > 0) {
                 if (isGrid) {
-                    // 横屏：首屏行数规格 4→1行、6→1行、8→2行、10→2行、12→2行
+                    // 横屏：行数规格 4→1行、6→1行、8→2行、10→2行、12→2行，扣除行间距
                     val gridRows = when (displayColumns) {
                         4 -> 1
                         6 -> 1
@@ -500,18 +499,22 @@ class MainActivity : Activity() {
                         12 -> 2
                         else -> 1
                     }
-                    containerHeight / gridRows
+                    val spacingPx = (parent as? GridView)?.verticalSpacing ?: dp(10)
+                    (containerHeight - spacingPx * (gridRows - 1)) / gridRows
                 } else {
-                    // 竖屏：首屏显示 display_columns 条密度
-                    containerHeight / displayColumns.coerceIn(4, 12)
+                    // 竖屏：首屏 display_columns 条密度，扣除列表项间距
+                    val count = displayColumns.coerceIn(4, 12)
+                    val spacingPx = (parent as? ListView)?.dividerHeight ?: dp(8)
+                    (containerHeight - spacingPx * (count - 1)) / count
                 }
             } else {
                 // 兜底：父控件尚未测量完成时使用固定默认，避免高度为0
                 if (isGrid) dp(108) else dp(82)
             }
-            // 最低高度保护：横屏80dp、竖屏45dp；不限制最大高度
+            // 扣除item自身垂直padding后保证内容完整显示；保留最低高度保护（横屏80dp、竖屏45dp），不限制最大高度
+            val itemPaddingPx = view.paddingTop + view.paddingBottom
             val minHeightPx = if (isGrid) dp(80) else dp(45)
-            val itemHeight = itemHeightPx.coerceAtLeast(minHeightPx)
+            val itemHeight = (itemHeightPx - itemPaddingPx).coerceAtLeast(minHeightPx)
             view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, itemHeight)).apply {
                 height = itemHeight
             }
