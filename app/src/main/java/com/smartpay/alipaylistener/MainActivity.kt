@@ -63,6 +63,8 @@ class MainActivity : Activity() {
     private var ttsEnabled = true
     private var displayColumns = 8
     private var effectiveDisplayColumns = 8
+    // 显示数量档位：4/6/8/10/12，保存值即真实数量
+    private val displayColumnOptions = listOf("4", "6", "8", "10", "12")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,11 +135,18 @@ class MainActivity : Activity() {
         cbTtsSwitch = findViewById(R.id.cb_tts_switch)
         cbTtsSwitch.isChecked = ttsEnabled
         etPairCode.setText(prefs.getString("pair_code", ""))
-        val columnOptions = (4..12).map { "$it" }
+        val columnOptions = displayColumnOptions
         spDisplayColumns.adapter = ArrayAdapter(this, R.layout.item_spinner_column, columnOptions).apply {
             setDropDownViewResource(R.layout.item_spinner_column)
         }
-        spDisplayColumns.setSelection(displayColumns - 4, false)
+        // 档位规范化：历史保存值若不在档位中（如5/7/9/11），归一化到默认8，保证显示与保存一致
+        val savedIndex = columnOptions.indexOf(displayColumns.toString())
+        if (savedIndex < 0) {
+            displayColumns = 8
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit()
+                .putInt(displayColumnsKey, displayColumns).apply()
+        }
+        spDisplayColumns.setSelection(columnOptions.indexOf(displayColumns.toString()), false)
         applyDisplayDensity()
     }
 
@@ -212,7 +221,8 @@ class MainActivity : Activity() {
         }
         spDisplayColumns.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val selectedColumns = (position + 4).coerceIn(4, 12)
+                // 直接取选项真实值，不依赖position偏移
+                val selectedColumns = displayColumnOptions[position].toInt()
                 if (selectedColumns != displayColumns) {
                     displayColumns = selectedColumns
                     getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit()
