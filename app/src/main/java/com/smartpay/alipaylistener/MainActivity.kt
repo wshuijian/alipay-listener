@@ -352,6 +352,12 @@ class MainActivity : Activity() {
         historyGridView?.verticalSpacing = dp(10)
         if (::homeAdapter.isInitialized) homeAdapter.notifyDataSetChanged()
         if (::historyAdapter.isInitialized) historyAdapter.notifyDataSetChanged()
+        // 布局完成后的保险刷新：若首次getView时父控件尚未测量完成(parent.height=0进入兜底值)，
+        // 此post在布局完成后执行，强制按父控件实际高度重新计算item尺寸
+        homeListView?.post { homeAdapter.notifyDataSetChanged() }
+        homeGridView?.post { homeAdapter.notifyDataSetChanged() }
+        historyListView?.post { historyAdapter.notifyDataSetChanged() }
+        historyGridView?.post { historyAdapter.notifyDataSetChanged() }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
