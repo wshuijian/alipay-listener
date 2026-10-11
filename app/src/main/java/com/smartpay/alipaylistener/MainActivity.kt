@@ -292,24 +292,27 @@ class MainActivity : Activity() {
     private fun refreshHomeList() {
         todayPayments.clear()
         val todayStr = dayFormat.format(Calendar.getInstance().time)
+        // 竖屏首页只显示最近 display_columns 条
         allPayments.filter { dayFormat.format(Date(it.time)) == todayStr }
             .sortedByDescending { it.time }
+            .take(displayColumns)
             .forEach { todayPayments.add(it) }
         homeAdapter.notifyDataSetChanged()
         applyDisplayDensity()
     }
 
     private fun refreshHistoryList() {
-        historyPayments.clear()
         val dayStr = dayFormat.format(selectedHistoryDay.time)
-        allPayments.filter { dayFormat.format(Date(it.time)) == dayStr }
+        val dayAll = allPayments.filter { dayFormat.format(Date(it.time)) == dayStr }
             .sortedByDescending { it.time }
-            .forEach { historyPayments.add(it) }
-        tvHistoryDate.text = dateLabelFormat.format(selectedHistoryDay.time)
-        // 历史日期统计：复用当前筛选结果，展示总金额与笔数
-        val total = historyPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+        // 历史日期统计基于当天全部订单，不受显示数量限制
+        val total = dayAll.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
         tvHistoryTotal.text = "总金额：¥" + DecimalFormat("#,##0.00").format(total)
-        tvHistoryCount.text = "${historyPayments.size}笔"
+        tvHistoryCount.text = "${dayAll.size}笔"
+        // 显示只取最近 display_columns 条
+        historyPayments.clear()
+        dayAll.take(displayColumns).forEach { historyPayments.add(it) }
+        tvHistoryDate.text = dateLabelFormat.format(selectedHistoryDay.time)
         val isToday = dayStr == dayFormat.format(Calendar.getInstance().time)
         findViewById<View>(R.id.btn_history_next).apply {
             isEnabled = !isToday
@@ -329,10 +332,19 @@ class MainActivity : Activity() {
     }
 
     private fun applyDisplayDensity() {
+        // 显示数量 → 横屏每行列数映射：4→4, 6→6, 8→4, 10→5, 12→6（display_columns保存值不变）
+        val gridColumns = when (displayColumns) {
+            4 -> 4
+            6 -> 6
+            8 -> 4
+            10 -> 5
+            12 -> 6
+            else -> 4
+        }
         // 根据设备可用宽度限制实际列数，避免手机横屏卡片过窄。
         val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
         val maxColumnsThatFit = (availableWidthDp / 80).coerceIn(4, 12)
-        effectiveDisplayColumns = minOf(displayColumns, maxColumnsThatFit)
+        effectiveDisplayColumns = minOf(gridColumns, maxColumnsThatFit)
         homeGridView?.numColumns = effectiveDisplayColumns
         historyGridView?.numColumns = effectiveDisplayColumns
         homeGridView?.horizontalSpacing = dp(10)
