@@ -292,10 +292,9 @@ class MainActivity : Activity() {
     private fun refreshHomeList() {
         todayPayments.clear()
         val todayStr = dayFormat.format(Calendar.getInstance().time)
-        // 竖屏首页只显示最近 display_columns 条
+        // 首页保留当天全部订单，可上下滑动查看；display_columns仅作为首屏显示密度
         allPayments.filter { dayFormat.format(Date(it.time)) == todayStr }
             .sortedByDescending { it.time }
-            .take(displayColumns)
             .forEach { todayPayments.add(it) }
         homeAdapter.notifyDataSetChanged()
         applyDisplayDensity()
@@ -479,21 +478,24 @@ class MainActivity : Activity() {
                 latestBadge.visibility = View.GONE
             }
             val isGrid = parent is GridView
-            val isHome = highlightFirst
             val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
             val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns.coerceAtLeast(1) else 0
-            // 动态高度：按屏幕可用高度与显示条数计算，保证卡片完整显示不截断
+            // 窗口模式：扣除顶部固定区域(96dp)，按显示密度动态计算卡片高度，数据不截断、超出部分滚动
             val availableHeightDp = (resources.configuration.screenHeightDp - 96).coerceAtLeast(300)
             val heightDp = if (isGrid) {
-                // 横屏：卡片高度 = 可用高度 / 行数（行数=订单数÷列数，上取整）
-                val columns = effectiveDisplayColumns.coerceAtLeast(1)
-                val rows = (items.size + columns - 1) / columns
-                (availableHeightDp / rows.coerceAtLeast(1)).coerceIn(108, 240)
-            } else if (isHome) {
-                // 竖屏首页：卡片高度 = 可用高度 / 显示条数，条数少时卡片更大
-                (availableHeightDp / items.size.coerceAtLeast(1)).coerceIn(56, 220)
+                // 横屏：首屏行数规格 4→1行、6→1行、8→2行、10→2行、12→2行
+                val gridRows = when (displayColumns) {
+                    4 -> 1
+                    6 -> 1
+                    8 -> 2
+                    10 -> 2
+                    12 -> 2
+                    else -> 1
+                }
+                (availableHeightDp / gridRows).coerceIn(108, 240)
             } else {
-                82  // 历史页可滚动查看全部订单，保持原高度
+                // 竖屏：首屏显示 display_columns 条密度，条数多时卡片紧凑
+                (availableHeightDp / displayColumns.coerceIn(4, 12)).coerceIn(56, 220)
             }
             view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))).apply {
                 height = dp(heightDp)
@@ -507,15 +509,15 @@ class MainActivity : Activity() {
                     cellWidthDp >= 95 -> 18f
                     else -> 15f
                 }
-            } else if (isHome && heightDp < 70) 20f else 28f
+            } else if (heightDp < 70) 20f else 28f
             channelTv.textSize = if (isGrid) {
                 when {
                     cellWidthDp >= 160 -> 14f
                     cellWidthDp >= 115 -> 12f
                     else -> 10f
                 }
-            } else if (isHome && heightDp < 70) 10f else 12f
-            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else if (isHome && heightDp < 70) 10f else 12f
+            } else if (heightDp < 70) 10f else 12f
+            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else if (heightDp < 70) 10f else 12f
             return view
         }
     }
