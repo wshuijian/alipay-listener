@@ -480,26 +480,36 @@ class MainActivity : Activity() {
             val isGrid = parent is GridView
             val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
             val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns.coerceAtLeast(1) else 0
-            // 窗口模式：扣除顶部固定区域(96dp)，按显示密度动态计算卡片高度，数据不截断、超出部分滚动
-            val availableHeightDp = (resources.configuration.screenHeightDp - 96).coerceAtLeast(300)
-            val heightDp = if (isGrid) {
-                // 横屏：首屏行数规格 4→1行、6→1行、8→2行、10→2行、12→2行
-                val gridRows = when (displayColumns) {
-                    4 -> 1
-                    6 -> 1
-                    8 -> 2
-                    10 -> 2
-                    12 -> 2
-                    else -> 1
+            // 卡片高度：使用父控件(ListView/GridView)实际高度计算，不再用屏幕高度估算
+            // 顶部区域已由布局处理，父控件高度就是列表真正可用高度
+            val containerHeight = parent.height
+            val itemHeightPx = if (containerHeight > 0) {
+                if (isGrid) {
+                    // 横屏：首屏行数规格 4→1行、6→1行、8→2行、10→2行、12→2行
+                    val gridRows = when (displayColumns) {
+                        4 -> 1
+                        6 -> 1
+                        8 -> 2
+                        10 -> 2
+                        12 -> 2
+                        else -> 1
+                    }
+                    containerHeight / gridRows
+                } else {
+                    // 竖屏：首屏显示 display_columns 条密度
+                    containerHeight / displayColumns.coerceIn(4, 12)
                 }
-                (availableHeightDp / gridRows).coerceIn(108, 240)
             } else {
-                // 竖屏：首屏显示 display_columns 条密度，条数多时卡片紧凑
-                (availableHeightDp / displayColumns.coerceIn(4, 12)).coerceIn(56, 220)
+                // 兜底：父控件尚未测量完成时使用固定默认，避免高度为0
+                if (isGrid) dp(108) else dp(82)
             }
-            view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))).apply {
-                height = dp(heightDp)
+            // 最低高度保护：横屏80dp、竖屏45dp；不限制最大高度
+            val minHeightPx = if (isGrid) dp(80) else dp(45)
+            val itemHeight = itemHeightPx.coerceAtLeast(minHeightPx)
+            view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, itemHeight)).apply {
+                height = itemHeight
             }
+            val itemHeightDp = (itemHeight / resources.displayMetrics.density).toInt()
             amountTv.textSize = if (isGrid) {
                 when {
                     cellWidthDp >= 190 -> 28f
@@ -509,15 +519,15 @@ class MainActivity : Activity() {
                     cellWidthDp >= 95 -> 18f
                     else -> 15f
                 }
-            } else if (heightDp < 70) 20f else 28f
+            } else if (itemHeightDp < 70) 20f else 28f
             channelTv.textSize = if (isGrid) {
                 when {
                     cellWidthDp >= 160 -> 14f
                     cellWidthDp >= 115 -> 12f
                     else -> 10f
                 }
-            } else if (heightDp < 70) 10f else 12f
-            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else if (heightDp < 70) 10f else 12f
+            } else if (itemHeightDp < 70) 10f else 12f
+            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else if (itemHeightDp < 70) 10f else 12f
             return view
         }
     }
