@@ -14,6 +14,7 @@ import android.text.TextUtils
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.animation.AnimationUtils
 import android.widget.*
 import android.speech.tts.TextToSpeech
 import java.text.DecimalFormat
@@ -428,6 +429,8 @@ class MainActivity : Activity() {
             if (latest) {
                 view.setBackgroundResource(R.drawable.bg_payment_card_latest)
                 latestBadge.visibility = View.VISIBLE
+                // 最新订单高亮动画：透明度呼吸一次（0.5→1.0→0.5→1.0），仅首页第一笔播放
+                view.startAnimation(AnimationUtils.loadAnimation(context, R.anim.latest_payment_highlight))
             } else {
                 view.setBackgroundResource(R.drawable.bg_payment_card)
                 latestBadge.visibility = View.GONE
