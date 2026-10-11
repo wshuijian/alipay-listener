@@ -488,7 +488,7 @@ class MainActivity : Activity() {
             val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns.coerceAtLeast(1) else 0
             // 卡片高度：使用父控件(ListView/GridView)实际高度计算，不再用屏幕高度估算
             // 顶部区域已由布局处理，父控件高度就是列表真正可用高度
-            val containerHeight = parent.height
+            val containerHeight = parent?.height ?: 0
             val itemHeightPx = if (containerHeight > 0) {
                 if (isGrid) {
                     // 横屏：首屏行数规格 4→1行、6→1行、8→2行、10→2行、12→2行
