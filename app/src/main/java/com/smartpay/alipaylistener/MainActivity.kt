@@ -44,6 +44,8 @@ class MainActivity : Activity() {
     private lateinit var tvDataTotal: TextView
     private lateinit var tvDataCount: TextView
     private lateinit var tvHistoryDate: TextView
+    private lateinit var tvHistoryTotal: TextView
+    private lateinit var tvHistoryCount: TextView
     private lateinit var spDisplayColumns: Spinner
     private lateinit var cbTtsSwitch: CheckBox
 
@@ -100,6 +102,8 @@ class MainActivity : Activity() {
         tvDataTotal = findViewById(R.id.tv_data_total)
         tvDataCount = findViewById(R.id.tv_data_count)
         tvHistoryDate = findViewById(R.id.tv_history_date)
+        tvHistoryTotal = findViewById(R.id.tv_history_total)
+        tvHistoryCount = findViewById(R.id.tv_history_count)
         spDisplayColumns = findViewById(R.id.sp_display_columns)
 
         val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
@@ -292,6 +296,10 @@ class MainActivity : Activity() {
             .sortedByDescending { it.time }
             .forEach { historyPayments.add(it) }
         tvHistoryDate.text = dateLabelFormat.format(selectedHistoryDay.time)
+        // 历史日期统计：复用当前筛选结果，展示总金额与笔数
+        val total = historyPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+        tvHistoryTotal.text = "总金额：¥" + DecimalFormat("#,##0.00").format(total)
+        tvHistoryCount.text = "${historyPayments.size}笔"
         val isToday = dayStr == dayFormat.format(Calendar.getInstance().time)
         findViewById<View>(R.id.btn_history_next).apply {
             isEnabled = !isToday
@@ -427,7 +435,18 @@ class MainActivity : Activity() {
             amountTv.setTextColor(channelColor)
             val latest = highlightFirst && position == 0
             if (latest) {
-                view.setBackgroundResource(R.drawable.bg_payment_card_latest)
+                // 最新订单背景颜色绑定渠道：微信绿、支付宝蓝、银行/第三方橙黄
+                val latestStrokeColor = when {
+                    item.channel.contains("微信") -> 0xFF07C160.toInt()
+                    item.channel.contains("支付宝") -> 0xFF1677FF.toInt()
+                    else -> 0xFFF2B84B.toInt()
+                }
+                val latestBg = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(16).toFloat()
+                    setColor(0xFF1B2A3A.toInt())
+                    setStroke(dp(1), latestStrokeColor)
+                }
+                view.setBackground(latestBg)
                 latestBadge.visibility = View.VISIBLE
                 // 最新订单高亮动画：透明度呼吸一次（0.5→1.0→0.5→1.0），仅首页第一笔播放
                 view.startAnimation(AnimationUtils.loadAnimation(context, R.anim.latest_payment_highlight))
