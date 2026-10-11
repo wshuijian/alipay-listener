@@ -309,9 +309,9 @@ class MainActivity : Activity() {
         val total = dayAll.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
         tvHistoryTotal.text = "总金额：¥" + DecimalFormat("#,##0.00").format(total)
         tvHistoryCount.text = "${dayAll.size}笔"
-        // 显示只取最近 display_columns 条
+        // 显示当天全部订单，不受显示数量限制
         historyPayments.clear()
-        dayAll.take(displayColumns).forEach { historyPayments.add(it) }
+        dayAll.forEach { historyPayments.add(it) }
         tvHistoryDate.text = dateLabelFormat.format(selectedHistoryDay.time)
         val isToday = dayStr == dayFormat.format(Calendar.getInstance().time)
         findViewById<View>(R.id.btn_history_next).apply {
@@ -408,6 +408,8 @@ class MainActivity : Activity() {
         decor.systemUiVisibility = if (full) View.SYSTEM_UI_FLAG_LAYOUT_STABLE else flags
         bottomBar.visibility = if (full) View.VISIBLE else View.GONE
         topActions.visibility = View.VISIBLE
+        // 全屏进入/退出后屏幕可用高度变化，重新计算列数与item尺寸
+        applyDisplayDensity()
     }
 
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
@@ -477,18 +479,22 @@ class MainActivity : Activity() {
                 latestBadge.visibility = View.GONE
             }
             val isGrid = parent is GridView
+            val isHome = highlightFirst
             val availableWidthDp = (resources.configuration.screenWidthDp - 24).coerceAtLeast(320)
-            val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns else 0
+            val cellWidthDp = if (isGrid) availableWidthDp / effectiveDisplayColumns.coerceAtLeast(1) else 0
+            // 动态高度：按屏幕可用高度与显示条数计算，保证卡片完整显示不截断
+            val availableHeightDp = (resources.configuration.screenHeightDp - 96).coerceAtLeast(300)
             val heightDp = if (isGrid) {
-                when {
-                    cellWidthDp >= 190 -> 168
-                    cellWidthDp >= 160 -> 154
-                    cellWidthDp >= 135 -> 142
-                    cellWidthDp >= 115 -> 132
-                    cellWidthDp >= 95 -> 120
-                    else -> 108
-                }
-            } else 82
+                // 横屏：卡片高度 = 可用高度 / 行数（行数=订单数÷列数，上取整）
+                val columns = effectiveDisplayColumns.coerceAtLeast(1)
+                val rows = (items.size + columns - 1) / columns
+                (availableHeightDp / rows.coerceAtLeast(1)).coerceIn(108, 240)
+            } else if (isHome) {
+                // 竖屏首页：卡片高度 = 可用高度 / 显示条数，条数少时卡片更大
+                (availableHeightDp / items.size.coerceAtLeast(1)).coerceIn(56, 220)
+            } else {
+                82  // 历史页可滚动查看全部订单，保持原高度
+            }
             view.layoutParams = (view.layoutParams ?: AbsListView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))).apply {
                 height = dp(heightDp)
             }
@@ -501,15 +507,15 @@ class MainActivity : Activity() {
                     cellWidthDp >= 95 -> 18f
                     else -> 15f
                 }
-            } else 28f
+            } else if (isHome && heightDp < 70) 20f else 28f
             channelTv.textSize = if (isGrid) {
                 when {
                     cellWidthDp >= 160 -> 14f
                     cellWidthDp >= 115 -> 12f
                     else -> 10f
                 }
-            } else 12f
-            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else 12f
+            } else if (isHome && heightDp < 70) 10f else 12f
+            timeTv.textSize = if (isGrid && cellWidthDp < 95) 10f else if (isHome && heightDp < 70) 10f else 12f
             return view
         }
     }
