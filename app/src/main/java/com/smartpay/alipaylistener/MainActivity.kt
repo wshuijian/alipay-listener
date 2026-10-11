@@ -133,7 +133,7 @@ class MainActivity : Activity() {
         cbTtsSwitch = findViewById(R.id.cb_tts_switch)
         cbTtsSwitch.isChecked = ttsEnabled
         etPairCode.setText(prefs.getString("pair_code", ""))
-        val columnOptions = (4..12).map { "$it 列" }
+        val columnOptions = (4..12).map { "$it" }
         spDisplayColumns.adapter = ArrayAdapter(this, R.layout.item_spinner_column, columnOptions).apply {
             setDropDownViewResource(R.layout.item_spinner_column)
         }
