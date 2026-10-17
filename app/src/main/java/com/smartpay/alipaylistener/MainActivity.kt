@@ -88,7 +88,7 @@ class MainActivity : Activity() {
                 if (tvLog.text.length > 120_000) {
                     val target = tvLog.text.length - 100_000
                     val newline = tvLog.text.indexOf("\n", target)
-                    if (newline >= 0) tvLog.text.delete(0, newline + 1)
+                    if (newline >= 0) tvLog.text = tvLog.text.subSequence(newline + 1, tvLog.text.length)
                 }
                 if (wasAtBottom) logScrollView.post { logScrollView.fullScroll(View.FOCUS_DOWN) }
             }
