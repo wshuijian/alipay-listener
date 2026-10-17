@@ -24,6 +24,9 @@ class KeepAliveService : Service() {
             private set
     }
 
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -31,9 +34,11 @@ class KeepAliveService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         // 注册网络状态监听，记录网络变化
         val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-        val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        connectivityManager = cm
+        val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 LogManager.addLog("网络诊断", "网络已连接: $network")
+                MqttClientManager.onNetworkAvailable()
             }
             override fun onLost(network: Network) {
                 LogManager.addLog("网络诊断", "网络已断开: $network")
@@ -47,9 +52,10 @@ class KeepAliveService : Service() {
                 LogManager.addLog("网络诊断", "网络状态变化: $type")
             }
         }
+        networkCallback = callback
         try {
             val req = NetworkRequest.Builder().build()
-            cm.registerNetworkCallback(req, networkCallback)
+            cm.registerNetworkCallback(req, callback)
             LogManager.addLog("网络诊断", "网络状态监听已注册")
         } catch (e: Exception) {
             LogManager.addLog("网络诊断", "注册网络监听失败: ${e.message}")
@@ -72,6 +78,12 @@ class KeepAliveService : Service() {
     }
 
     override fun onDestroy() {
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {
+        }
+        networkCallback = null
+        connectivityManager = null
         super.onDestroy()
         instance = null
         MqttClientManager.disconnect()

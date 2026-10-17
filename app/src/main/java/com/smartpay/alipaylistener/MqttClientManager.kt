@@ -19,12 +19,14 @@ object MqttClientManager {
     private const val TOPIC_PREFIX = "smartpay/v1/"
     private const val ORDER_RESULT_TOPIC = TOPIC_PREFIX + "order_result/"
 
+    private val connectionLock = Any()
     private var mqttClient: MqttClient? = null
-    private var isConnected = false
-    private var isPaired = false
+    @Volatile private var isConnected = false
+    @Volatile private var isConnecting = false
+    @Volatile private var isPaired = false
     private var deviceId = ""  // 设备ID固定不变，重连也用同一个
     private var pairCode = ""
-    private var isReconnecting = false  // 防止重复重连
+    @Volatile private var isReconnecting = false  // 表示已有一个延迟重连任务
     private val pendingTriggerQueue = mutableListOf<String>()  // 断线时暂存银行卡触发消息，连接恢复后补发
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
@@ -32,14 +34,67 @@ object MqttClientManager {
     // 使用主线程Handler做延迟重连，避免普通线程在Doze下被挂起
     private val reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val reconnectRunnable = Runnable {
-        isReconnecting = false
-        log("正在重连...")
-        connect(pairCode)
+        val code = synchronized(connectionLock) {
+            isReconnecting = false
+            if (isConnected || isConnecting || pairCode.isBlank()) null else pairCode
+        }
+        if (code != null) {
+            log("正在重连...")
+            // MqttClient.connect() 是同步调用，不能放在主线程 Handler 上执行。
+            Thread({ connect(code) }, "MQTT-Reconnect").start()
+        }
     }
     // 心跳记录变量，只记录最后一次ping时间，不打实时日志
-    private var lastPingReqTime = 0L
-    private var lastPingRespTime = 0L
-    private var pingOutstanding = false
+    @Volatile private var lastPingReqTime = 0L
+    @Volatile private var lastPingRespTime = 0L
+    @Volatile private var pingOutstanding = false
+    private var pahoDiagnosticsConfigured = false
+
+    // Paho trace records use numeric message IDs; inspect parameters as well as message text.
+    private val pahoDiagnosticHandler = object : java.util.logging.Handler() {
+        override fun publish(record: java.util.logging.LogRecord) {
+            try {
+                val params = record.parameters?.joinToString(" ") { it?.toString() ?: "" } ?: ""
+                val detail = "${record.message ?: ""} $params"
+                val now = System.currentTimeMillis()
+                val time = android.text.format.DateFormat.format("HH:mm:ss.SSS", now).toString()
+                if (detail.contains("PINGREQ", ignoreCase = true)) {
+                    lastPingReqTime = now
+                    pingOutstanding = true
+                    log("[MQTT_HEARTBEAT] PINGREQ time=$time")
+                }
+                if (detail.contains("PINGRESP", ignoreCase = true)) {
+                    lastPingRespTime = now
+                    pingOutstanding = false
+                    log("[MQTT_HEARTBEAT] PINGRESP time=$time")
+                }
+                if (record.level.intValue() >= java.util.logging.Level.WARNING.intValue()) {
+                    val thrown = record.thrown?.stackTraceToString()
+                    log("[MQTT_COMMS_ERROR] ${record.level.name}: $detail${if (thrown.isNullOrBlank()) "" else "\n$thrown"}")
+                }
+            } catch (_: Exception) {
+            }
+        }
+        override fun flush() {}
+        override fun close() {}
+    }
+
+    private fun configurePahoDiagnostics() {
+        synchronized(connectionLock) {
+            if (pahoDiagnosticsConfigured) return
+            try {
+                val logger = java.util.logging.Logger.getLogger("org.eclipse.paho.client.mqttv3.internal")
+                // Enable Paho trace records internally, but emit only ping events and errors.
+                logger.level = java.util.logging.Level.ALL
+                logger.addHandler(pahoDiagnosticHandler)
+                logger.useParentHandlers = false
+                pahoDiagnosticsConfigured = true
+                log("Paho心跳诊断已启用：仅输出PINGREQ/PINGRESP和错误")
+            } catch (e: Exception) {
+                log("配置Paho心跳诊断失败: ${e.message}")
+            }
+        }
+    }
 
     fun setLogCallback(callback: (String) -> Unit) {
         logCallback = callback
@@ -55,21 +110,28 @@ object MqttClientManager {
     fun setPaymentCallback(callback: (String, String) -> Unit) { paymentCallback = callback }
 
     fun connect(pairCode: String) {
-        log("🔍 定位: connect() 被调用, 时间=${System.currentTimeMillis()}, pairCode=$pairCode, 当前状态 isConnected=$isConnected, isPaired=$isPaired")
-        // 打印调用来源栈，定位是谁调的connect
+        val skipReason = synchronized(connectionLock) {
+            when {
+                isConnected && mqttClient?.isConnected == true -> "MQTT已经连接"
+                isConnecting -> "MQTT正在连接"
+                isReconnecting -> "已有一个延迟重连任务"
+                else -> {
+                    if (pairCode.isNotBlank()) this.pairCode = pairCode
+                    isConnecting = true
+                    null
+                }
+            }
+        }
+        log("🔍 定位: connect() 被调用, 时间=${System.currentTimeMillis()}, pairCode=$pairCode, isConnected=$isConnected, isConnecting=$isConnecting, isPaired=$isPaired")
+        if (skipReason != null) {
+            log("⚠️ $skipReason，跳过重复connect调用")
+            return
+        }
         try {
             throw Exception("调用来源栈")
         } catch (e: Exception) {
             log("🔍 定位: connect() 调用栈: ${e.stackTraceToString().take(500)}")
         }
-        // 防止重复初始化：只要MQTT客户端存在、已连接、或者正在重连，就直接返回，不重复新建连接
-        // 即使已经连接但未配对，也不重复重建连接，等待配对响应即可
-        if (mqttClient != null && (isConnected || isReconnecting)) {
-            log("⚠️ MQTT已连接或正在重连，跳过重复connect调用")
-            return
-        }
-        this.pairCode = pairCode
-        
         // 设备ID只生成一次，之后重连一直用同一个
         if (deviceId.isEmpty()) {
             deviceId = "android_" + UUID.randomUUID().toString().substring(0, 8)
@@ -86,40 +148,7 @@ object MqttClientManager {
 
             mqttClient = MqttClient(MQTT_BROKER, deviceId, MemoryPersistence())
 
-            // Paho comms日志降噪：只保留严重错误和心跳记录，关闭正常运行刷屏日志
-            try {
-                val mqttLogger = java.util.logging.Logger.getLogger("org.eclipse.paho.client.mqttv3.internal")
-                mqttLogger.level = java.util.logging.Level.SEVERE
-                val handler = object : java.util.logging.Handler() {
-                    override fun publish(record: java.util.logging.LogRecord) {
-                        val msg = record.message?.toString() ?: ""
-                        val nowStr = android.text.format.DateFormat.format("HH:mm:ss.SSS", System.currentTimeMillis()).toString()
-                        // 捕获Paho原生PINGREQ发送事件
-                        if (msg.contains("PINGREQ", ignoreCase = true)) {
-                            lastPingReqTime = System.currentTimeMillis()
-                            pingOutstanding = true
-                            log("[MQTT_HEARTBEAT] PINGREQ time=$nowStr")
-                        }
-                        // 捕获Paho原生PINGRESP接收事件
-                        if (msg.contains("PINGRESP", ignoreCase = true)) {
-                            lastPingRespTime = System.currentTimeMillis()
-                            pingOutstanding = false
-                            log("[MQTT_HEARTBEAT] PINGRESP time=$nowStr")
-                        }
-                        // 只打印异常/错误级别的comms日志，其他正常运行日志静默
-                        if (record.level == java.util.logging.Level.SEVERE || record.level == java.util.logging.Level.WARNING) {
-                            log("[MQTT_COMMS_ERROR] ${record.level.name}: $msg")
-                        }
-                    }
-                    override fun flush() {}
-                    override fun close() {}
-                }
-                mqttLogger.addHandler(handler)
-                mqttLogger.useParentHandlers = false
-                log("Paho comms日志已降噪，仅保留错误和心跳记录")
-            } catch (e: Exception) {
-                log("配置comms日志失败: ${e.message}")
-            }
+            configurePahoDiagnostics()
 
             val options = MqttConnectOptions().apply {
                 isCleanSession = true
@@ -129,12 +158,19 @@ object MqttClientManager {
                 // TLS连接：使用系统默认信任的SSL SocketFactory，无需自定义证书
                 socketFactory = javax.net.ssl.SSLContext.getDefault().socketFactory
             }
+            log("[MQTT_CONFIG] keepAlive=${options.keepAliveInterval}s cleanSession=${options.isCleanSession} automaticReconnect=${options.isAutomaticReconnect} connectionTimeout=${options.connectionTimeout}s broker=$MQTT_BROKER")
+            lastPingReqTime = 0L
+            lastPingRespTime = 0L
+            pingOutstanding = false
 
             mqttClient?.setCallback(object : MqttCallbackExtended {
                 override fun connectComplete(reconnect: Boolean, serverURI: String?) {
-                    isConnected = true
-                    // 连接成功，取消所有待执行的重连任务
-                    reconnectHandler.removeCallbacks(reconnectRunnable)
+                    synchronized(connectionLock) {
+                        isConnected = true
+                        isConnecting = false
+                        isReconnecting = false
+                        reconnectHandler.removeCallbacks(reconnectRunnable)
+                    }
                     log("✅ MQTT连接成功，已连接到服务器: $serverURI, 是否重连=$reconnect")
                     statusCallback?.invoke("connected", "连接成功")
                     // 订阅配对响应主题
@@ -158,21 +194,30 @@ object MqttClientManager {
                     flushPendingTriggers()
                 }
                 override fun connectionLost(cause: Throwable?) {
-                    isConnected = false
+                    synchronized(connectionLock) {
+                        isConnected = false
+                        isConnecting = false
+                    }
                     // 断线保留已配对状态，重连不需要重新配对
                     log("=== [MQTT_SOCKET_DIAG] 断线现场诊断 ===")
                     log("exception_type: ${cause?.javaClass?.name ?: "主动断开"}")
                     log("exception_message: ${cause?.message ?: "无"}")
                     cause?.let {
-                        log("exception_cause: ${it.cause?.javaClass?.name}: ${it.cause?.message}")
-                        log("exception_full_stack:")
-                        it.stackTrace.forEach { frame -> log("  at $frame") }
+                        var current: Throwable? = it
+                        var depth = 0
+                        while (current != null && depth < 8) {
+                            log("exception_chain[$depth]: ${current.javaClass.name}: ${current.message}")
+                            current = current.cause
+                            depth++
+                        }
+                        log("exception_full_stack: ${it.stackTraceToString()}")
                     }
                     // Paho 1.2.5 内部Socket为私有字段，外部无法直接获取
                     log("socket_diag: Paho 1.2.5内部Socket为私有封装，外部无法直接读取socket状态")
                     // 打印最后一次心跳摘要
-                    val fmtTime = { ts: Long -> if (ts == 0L) "无记录" else android.text.format.DateFormat.format("HH:mm:ss", ts).toString() }
-                    log("heartbeat_summary: lastPingReq=${fmtTime(lastPingReqTime)} lastPingResp=${fmtTime(lastPingRespTime)} pingOutstanding=$pingOutstanding")
+                    val fmtTime = { ts: Long -> if (ts == 0L) "无记录" else android.text.format.DateFormat.format("HH:mm:ss.SSS", ts).toString() }
+                    val currentTime = android.text.format.DateFormat.format("HH:mm:ss.SSS", System.currentTimeMillis()).toString()
+                    log("heartbeat_summary: now=$currentTime lastPingReq=${fmtTime(lastPingReqTime)} lastPingResp=${fmtTime(lastPingRespTime)} pingOutstanding=$pingOutstanding")
                     // 打印当前网络状态
                     try {
                         val ctx = KeepAliveService.instance
@@ -236,28 +281,49 @@ object MqttClientManager {
                 override fun deliveryComplete(token: IMqttDeliveryToken?) {}
             })
 
-            mqttClient?.connect(options)
-            isReconnecting = false
             log("正在连接MQTT服务器，等待连接建立...")
+            mqttClient?.connect(options)
             // 连接真正建立后，在MqttCallback的connectComplete回调里再订阅和发配对请求
 
         } catch (e: Exception) {
+            synchronized(connectionLock) {
+                isConnecting = false
+                isConnected = false
+            }
             log("❌ MQTT连接异常: ${e.message}")
+            log("exception_full_stack: ${e.stackTraceToString()}")
             statusCallback?.invoke("error", "连接失败")
-            // 5秒后重连
             scheduleReconnect()
         }
     }
 
-    /**
-     * 安排重连（防止重复重连，用主线程Handler延迟5秒，避免Doze下线程被挂起）
-     */
+    /** 网络恢复时提前尝试现有手动重连流程，不启用第二套自动重连。 */
+    fun onNetworkAvailable() {
+        val code = synchronized(connectionLock) {
+            if (pairCode.isBlank() || isConnecting || (isConnected && mqttClient?.isConnected == true)) {
+                null
+            } else {
+                if (isReconnecting) {
+                    reconnectHandler.removeCallbacks(reconnectRunnable)
+                    isReconnecting = false
+                }
+                pairCode
+            }
+        } ?: return
+
+        log("网络恢复且MQTT未连接，提前尝试恢复连接")
+        Thread({ connect(code) }, "MQTT-Network-Recovery").start()
+    }
+
+    /** Handler 只负责计时；同步网络连接始终放在后台线程。 */
     private fun scheduleReconnect() {
-        if (isReconnecting) return
-        isReconnecting = true
-        // 先移除旧的待执行重连任务，确保同一时间只有一个重连任务
-        reconnectHandler.removeCallbacks(reconnectRunnable)
-        reconnectHandler.postDelayed(reconnectRunnable, 5000)
+        synchronized(connectionLock) {
+            if (isConnected || isConnecting || isReconnecting) return
+            isReconnecting = true
+            reconnectHandler.removeCallbacks(reconnectRunnable)
+            reconnectHandler.postDelayed(reconnectRunnable, 5000)
+        }
+        log("已安排5秒后重连")
     }
 
     private fun sendPairRequest() {
@@ -361,12 +427,16 @@ object MqttClientManager {
     }
 
     fun disconnect() {
+        reconnectHandler.removeCallbacks(reconnectRunnable)
         try {
             mqttClient?.disconnect()
-            mqttClient = null
-            isConnected = false
-            isPaired = false
-            isReconnecting = false
+            synchronized(connectionLock) {
+                mqttClient = null
+                isConnected = false
+                isConnecting = false
+                isPaired = false
+                isReconnecting = false
+            }
             log("已断开连接")
         } catch (e: Exception) {
             log("断开异常: ${e.message}")

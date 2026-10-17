@@ -75,8 +75,13 @@
                 <Button android:id="@+id/btn_open_notification_access" android:layout_width="match_parent" android:layout_height="46dp" android:layout_marginTop="8dp" android:text="开启通知监听权限" android:textColor="#DCE8F3" android:backgroundTint="#173149"/>
                 <CheckBox android:id="@+id/cb_tts_switch" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:buttonTint="#00D6A0" android:text="开启本机语音播报" android:textColor="#DCE8F3" android:checked="true"/>
                 <TextView android:id="@+id/tv_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:textColor="#7F96AA" android:textSize="12sp"/>
-                <Button android:id="@+id/btn_copy_log" android:layout_width="match_parent" android:layout_height="38dp" android:layout_marginTop="12dp" android:text="高级诊断：复制全部日志" android:textSize="13sp" android:backgroundTint="#10283C" android:textColor="#00D6A0"/>
-                <ScrollView android:layout_width="match_parent" android:layout_height="120dp" android:layout_marginTop="8dp" android:background="#081725"><TextView android:id="@+id/tv_log" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:textColor="#718AA1" android:textSize="10sp" android:fontFamily="monospace"/></ScrollView>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal">
+                    <Button android:id="@+id/btn_copy_log" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:text="复制最近日志" android:textSize="12sp" android:backgroundTint="#10283C" android:textColor="#00D6A0"/>
+                    <Button android:id="@+id/btn_export_log" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="8dp" android:text="导出日志文件" android:textSize="12sp" android:backgroundTint="#173149" android:textColor="#DCE8F3"/>
+                </LinearLayout>
+                <ScrollView android:id="@+id/scroll_log" android:layout_width="match_parent" android:layout_height="220dp" android:layout_marginTop="8dp" android:background="#081725" android:fillViewport="true" android:scrollbars="vertical" android:fadeScrollbars="false" android:nestedScrollingEnabled="true">
+                    <TextView android:id="@+id/tv_log" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:textColor="#718AA1" android:textSize="10sp" android:fontFamily="monospace"/>
+                </ScrollView>
             </LinearLayout>
         </ScrollView>
     </FrameLayout>

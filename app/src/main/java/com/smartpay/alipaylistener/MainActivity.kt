@@ -41,6 +41,7 @@ class MainActivity : Activity() {
     private lateinit var topActions: View
     private lateinit var etPairCode: EditText
     private lateinit var tvLog: TextView
+    private lateinit var logScrollView: ScrollView
     private lateinit var tvDataTotal: TextView
     private lateinit var tvDataCount: TextView
     private lateinit var tvHistoryDate: TextView
@@ -68,6 +69,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LogManager.init(applicationContext)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.activity_main)
         bindViews()
@@ -77,7 +79,20 @@ class MainActivity : Activity() {
         updateStatus()
         updateTodaySummary()
         startClock()
-        LogManager.setLogCallback { log -> runOnUiThread { tvLog.append(log + "\n") } }
+        LogManager.setLogCallback { log ->
+            runOnUiThread {
+                val wasAtBottom = logScrollView.height > 0 &&
+                    logScrollView.scrollY + logScrollView.height >= tvLog.height - dp(16)
+                tvLog.append(log + "\n")
+                // Keep the visible TextView bounded; longer history is available via file export.
+                if (tvLog.text.length > 120_000) {
+                    val target = tvLog.text.length - 100_000
+                    val newline = tvLog.text.indexOf("\n", target)
+                    if (newline >= 0) tvLog.text.delete(0, newline + 1)
+                }
+                if (wasAtBottom) logScrollView.post { logScrollView.fullScroll(View.FOCUS_DOWN) }
+            }
+        }
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) tts?.language = Locale.CHINESE
         }
@@ -101,6 +116,18 @@ class MainActivity : Activity() {
         tvClock = findViewById(R.id.tv_clock)
         etPairCode = findViewById(R.id.et_pair_code)
         tvLog = findViewById(R.id.tv_log)
+        logScrollView = findViewById(R.id.scroll_log)
+        // Prevent the outer Settings ScrollView from intercepting swipes inside the log window.
+        logScrollView.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN ->
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                android.view.MotionEvent.ACTION_UP,
+                android.view.MotionEvent.ACTION_CANCEL ->
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            false
+        }
         tvDataTotal = findViewById(R.id.tv_data_total)
         tvDataCount = findViewById(R.id.tv_data_count)
         tvHistoryDate = findViewById(R.id.tv_history_date)
@@ -233,10 +260,36 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
         findViewById<Button>(R.id.btn_copy_log).setOnClickListener {
-            val allLogs = LogManager.getAllLogs().joinToString("\n")
+            val recentLogs = LogManager.getAllLogs()
+            val text = recentLogs.joinToString("\n")
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("收款日志", allLogs))
-            Toast.makeText(this, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("收款日志（最近）", text))
+            Toast.makeText(this, "已复制最近 ${recentLogs.size} 条；完整历史请点“导出日志文件”", Toast.LENGTH_LONG).show()
+        }
+        findViewById<Button>(R.id.btn_export_log).setOnClickListener {
+            Toast.makeText(this, "正在整理日志文件…", Toast.LENGTH_SHORT).show()
+            Thread {
+                try {
+                    val file = LogManager.exportFullLogs(applicationContext)
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        this, "$packageName.fileprovider", file
+                    )
+                    runOnUiThread {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            putExtra(Intent.EXTRA_SUBJECT, "智慧收款完整日志")
+                            putExtra(Intent.EXTRA_TEXT, "完整日志文件（包含当前日志和上一段轮转日志）")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        startActivity(Intent.createChooser(sendIntent, "导出完整日志文件"))
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        Toast.makeText(this, "导出日志失败：${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }.start()
         }
     }
 
