@@ -31,8 +31,11 @@ object MqttClientManager {
     private var logCallback: ((String) -> Unit)? = null
     private var statusCallback: ((String, String) -> Unit)? = null
     private var paymentCallback: ((String, String) -> Unit)? = null
-    // 使用主线程Handler做延迟重连，避免普通线程在Doze下被挂起
-    private val reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    // 使用独立后台调度器计时，避免主线程繁忙导致重连任务延迟。
+    private val reconnectScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "MQTT-Reconnect-Timer").apply { isDaemon = true }
+    }
+    private var reconnectFuture: java.util.concurrent.ScheduledFuture<*>? = null
     private val reconnectRunnable = Runnable {
         val code = synchronized(connectionLock) {
             isReconnecting = false
@@ -169,7 +172,8 @@ object MqttClientManager {
                         isConnected = true
                         isConnecting = false
                         isReconnecting = false
-                        reconnectHandler.removeCallbacks(reconnectRunnable)
+                        reconnectFuture?.cancel(false)
+                        reconnectFuture = null
                     }
                     log("✅ MQTT连接成功，已连接到服务器: $serverURI, 是否重连=$reconnect")
                     statusCallback?.invoke("connected", "连接成功")
@@ -304,7 +308,8 @@ object MqttClientManager {
                 null
             } else {
                 if (isReconnecting) {
-                    reconnectHandler.removeCallbacks(reconnectRunnable)
+                    reconnectFuture?.cancel(false)
+                    reconnectFuture = null
                     isReconnecting = false
                 }
                 pairCode
@@ -320,8 +325,8 @@ object MqttClientManager {
         synchronized(connectionLock) {
             if (isConnected || isConnecting || isReconnecting) return
             isReconnecting = true
-            reconnectHandler.removeCallbacks(reconnectRunnable)
-            reconnectHandler.postDelayed(reconnectRunnable, 5000)
+            reconnectFuture?.cancel(false)
+            reconnectFuture = reconnectScheduler.schedule(reconnectRunnable, 5, java.util.concurrent.TimeUnit.SECONDS)
         }
         log("已安排5秒后重连")
     }
@@ -427,7 +432,8 @@ object MqttClientManager {
     }
 
     fun disconnect() {
-        reconnectHandler.removeCallbacks(reconnectRunnable)
+        reconnectFuture?.cancel(false)
+        reconnectFuture = null
         try {
             mqttClient?.disconnect()
             synchronized(connectionLock) {
