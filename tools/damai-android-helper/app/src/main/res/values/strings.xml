@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">仅识别大麦 APP 页面中少量排队、缺票或网络错误提示类别；不自动点击、不输入内容，也不保存整页文字。</string>
+</resources>
