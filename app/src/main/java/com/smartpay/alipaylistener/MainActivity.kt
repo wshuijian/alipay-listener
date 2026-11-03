@@ -49,6 +49,7 @@ class MainActivity : Activity() {
     private lateinit var tvHistoryCount: TextView
     private lateinit var spDisplayColumns: Spinner
     private lateinit var cbTtsSwitch: CheckBox
+    private lateinit var cbKeepScreenOn: CheckBox
 
     private val prefsName = "alipay_listener_prefs"
     private val paymentsKey = "recent_payments"
@@ -138,6 +139,7 @@ class MainActivity : Activity() {
         val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
         displayColumns = prefs.getInt(displayColumnsKey, 8).coerceIn(4, 12)
         ttsEnabled = prefs.getBoolean("tts_enabled", true)
+        val keepScreenOnEnabled = prefs.getBoolean("keep_screen_on", false)
         findViewById<TextView>(R.id.tv_shop_name).text = prefs.getString("shop_name", "长风照相馆") ?: "长风照相馆"
 
         homeAdapter = PaymentAdapter(this, todayPayments, true)
@@ -161,6 +163,9 @@ class MainActivity : Activity() {
 
         cbTtsSwitch = findViewById(R.id.cb_tts_switch)
         cbTtsSwitch.isChecked = ttsEnabled
+        cbKeepScreenOn = findViewById(R.id.cb_keep_screen_on)
+        cbKeepScreenOn.isChecked = keepScreenOnEnabled
+        applyKeepScreenOn(keepScreenOnEnabled)
         etPairCode.setText(prefs.getString("pair_code", ""))
         val columnOptions = displayColumnOptions
         spDisplayColumns.adapter = ArrayAdapter(this, R.layout.item_spinner_column, columnOptions).apply {
@@ -245,6 +250,10 @@ class MainActivity : Activity() {
         cbTtsSwitch.setOnCheckedChangeListener { _, checked ->
             ttsEnabled = checked
             getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("tts_enabled", checked).apply()
+        }
+        cbKeepScreenOn.setOnCheckedChangeListener { _, checked ->
+            getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("keep_screen_on", checked).apply()
+            applyKeepScreenOn(checked)
         }
         spDisplayColumns.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -455,6 +464,14 @@ class MainActivity : Activity() {
                 handler.postDelayed(this, 1000)
             }
         })
+    }
+
+    private fun applyKeepScreenOn(enabled: Boolean) {
+        if (enabled) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     private fun toggleFullscreen() {
