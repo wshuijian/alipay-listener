@@ -50,6 +50,8 @@ class MainActivity : Activity() {
     private lateinit var spDisplayColumns: Spinner
     private lateinit var cbTtsSwitch: CheckBox
     private lateinit var cbKeepScreenOn: CheckBox
+    private lateinit var tvLicenseStatus: TextView
+    private lateinit var tvLicenseDevice: TextView
 
     private val prefsName = "alipay_listener_prefs"
     private val paymentsKey = "recent_payments"
@@ -71,6 +73,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         LogManager.init(applicationContext)
+        LicenseManager.init(applicationContext)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.activity_main)
         bindViews()
@@ -79,6 +82,7 @@ class MainActivity : Activity() {
         showPanel(0)
         updateStatus()
         updateTodaySummary()
+        updateLicenseStatus()
         startClock()
         LogManager.setLogCallback { log ->
             runOnUiThread {
@@ -166,6 +170,8 @@ class MainActivity : Activity() {
         cbKeepScreenOn = findViewById(R.id.cb_keep_screen_on)
         cbKeepScreenOn.isChecked = keepScreenOnEnabled
         applyKeepScreenOn(keepScreenOnEnabled)
+        tvLicenseStatus = findViewById(R.id.tv_license_status)
+        tvLicenseDevice = findViewById(R.id.tv_license_device)
         etPairCode.setText(prefs.getString("pair_code", ""))
         val columnOptions = displayColumnOptions
         spDisplayColumns.adapter = ArrayAdapter(this, R.layout.item_spinner_column, columnOptions).apply {
@@ -255,6 +261,7 @@ class MainActivity : Activity() {
             getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit().putBoolean("keep_screen_on", checked).apply()
             applyKeepScreenOn(checked)
         }
+        findViewById<Button>(R.id.btn_activate).setOnClickListener { showActivateDialog() }
         spDisplayColumns.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 // 直接取选项真实值，不依赖position偏移
@@ -472,6 +479,44 @@ class MainActivity : Activity() {
         } else {
             window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    private fun updateLicenseStatus() {
+        tvLicenseStatus.text = LicenseManager.statusText()
+        tvLicenseDevice.text = "本机识别码：" + LicenseManager.getDeviceId()
+        val type = LicenseManager.getLicense()
+        val active = LicenseManager.isActive()
+        tvLicenseStatus.setTextColor(when {
+            type == LicenseManager.LicenseType.UNACTIVATED -> 0xFFF2B84B.toInt()
+            active -> 0xFF62D88F.toInt()
+            else -> 0xFFFF6B6B.toInt()
+        })
+    }
+
+    private fun showActivateDialog() {
+        val input = EditText(this).apply {
+            hint = "请输入激活码（如 SMART-XXXX-XXXX）"
+            setSingleLine(true)
+            setTextColor(0xFFF5F8FC.toInt())
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("软件激活")
+            .setMessage("请输入您购买的激活码。支持季度版/年度版/三年版/永久版。")
+            .setView(input)
+            .setPositiveButton("激活") { _, _ ->
+                val code = input.text.toString().trim()
+                when (val result = LicenseManager.activate(code)) {
+                    is LicenseManager.ActivateResult.Success -> {
+                        Toast.makeText(this, "激活成功：${result.type.displayName}", Toast.LENGTH_LONG).show()
+                        updateLicenseStatus()
+                    }
+                    is LicenseManager.ActivateResult.Failure -> {
+                        Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun toggleFullscreen() {
