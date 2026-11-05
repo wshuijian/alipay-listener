@@ -33,8 +33,17 @@ jobs:
     - name: Build Debug APK
       run: gradle assembleDebug
 
-    - name: Upload APK
+    - name: Build Release APK (unsigned, for obfuscation verify)
+      run: gradle assembleRelease
+
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: alipay-listener-apk
+        name: alipay-listener-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Upload Release APK (unsigned test)
+      uses: actions/upload-artifact@v4
+      with:
+        name: alipay-listener-release-unsigned-apk
+        path: app/build/outputs/apk/release/*.apk
