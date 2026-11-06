@@ -15,11 +15,26 @@ android {
         versionName "1.0"
     }
 
+    // 签名配置：从环境变量读密码，仓库里不存任何密钥
+    signingConfigs {
+        releaseSigningConfig {
+            def ksPath = System.getenv("RELEASE_KEYSTORE")
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             // 暂时不启用资源压缩，先单独验证代码混淆
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 环境变量未设置时signingConfig为null，release产出未签名包（开发期安全）
+            signingConfig signingConfigs.releaseSigningConfig
         }
     }
     compileOptions {
