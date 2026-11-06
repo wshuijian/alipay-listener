@@ -1,21 +1,83 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <corners android:radius="22dp" />
-            <solid android:color="#173B72" />
-        </shape>
-    </item>
-    <item android:width="58dp" android:height="44dp" android:gravity="center">
-        <shape android:shape="rectangle">
-            <corners android:radius="8dp" />
-            <solid android:color="#FFFFFF" />
-        </shape>
-    </item>
-    <item android:width="38dp" android:height="6dp" android:gravity="center_horizontal|center_vertical" android:top="5dp">
-        <shape android:shape="rectangle">
-            <corners android:radius="3dp" />
-            <solid android:color="#F4B740" />
-        </shape>
-    </item>
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Premium blue gradient background -->
+    <path android:pathData="M24,0 H84 C97.25,0 108,10.75 108,24 V84 C108,97.25 97.25,108 84,108 H24 C10.75,108 0,97.25 0,84 V24 C0,10.75 10.75,0 24,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="5"
+                android:endX="98"
+                android:endY="106">
+                <item android:offset="0" android:color="#27BDF5" />
+                <item android:offset="0.46" android:color="#0869F5" />
+                <item android:offset="1" android:color="#071D78" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Soft lower blue depth -->
+    <path
+        android:pathData="M4,75 C25,92 66,102 104,77 V84 C104,96 96,104 84,104 H24 C12,104 4,96 4,84 Z"
+        android:fillColor="#071E86"
+        android:fillAlpha="0.30" />
+
+    <!-- Megaphone body -->
+    <path
+        android:pathData="M23,40 L57,26 C60,25 63,27 63,30 V76 C63,79 60,81 57,79 L23,65 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M16,41 H23 V64 H16 C13,64 11,62 11,59 V46 C11,43 13,41 16,41 Z"
+        android:fillColor="#EAF8FF" />
+    <path
+        android:pathData="M33,66 L43,69 L48,84 C49,87 47,89 44,90 L41,91 C39,91 38,90 37,88 L31,74 Z"
+        android:fillColor="#F4FAFF" />
+
+    <!-- Broadcast waves -->
+    <path
+        android:pathData="M70,40 C78,47 78,58 70,65"
+        android:fillColor="#00000000"
+        android:strokeColor="#C8F5FF"
+        android:strokeWidth="3.8"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M79,32 C92,43 92,62 79,73"
+        android:fillColor="#00000000"
+        android:strokeColor="#8DEBFF"
+        android:strokeWidth="3.8"
+        android:strokeLineCap="round" />
+
+    <!-- Payment coin -->
+    <path
+        android:pathData="M76,59 A17,17 0 1,0 76,93 A17,17 0 1,0 76,59 Z"
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#FFD27A"
+        android:strokeWidth="1.4" />
+
+    <!-- Yuan mark -->
+    <path
+        android:pathData="M68.5,68 L72.5,68 L76,73 L79.5,68 L83.5,68 L78,76 V78 H83.5 V81 H78 V87 H74 V81 H68.5 V78 H74 V76 Z"
+        android:fillColor="#0965D9" />
+    <path
+        android:pathData="M69,78 H83"
+        android:strokeColor="#0965D9"
+        android:strokeWidth="2.2" />
+    <path
+        android:pathData="M69,83 H83"
+        android:strokeColor="#0965D9"
+        android:strokeWidth="2.2" />
+
+    <!-- Motion accent -->
+    <path
+        android:pathData="M12,87 C31,102 74,102 96,78"
+        android:fillColor="#00000000"
+        android:strokeColor="#71E8FF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round" />
+</vector>
